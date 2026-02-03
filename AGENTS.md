@@ -5,7 +5,8 @@ Diretrizes de desenvolvimento do projeto `qrud`.
 **Workflow**
 1. Mantenha mudancas pequenas e focadas por tarefa.
 2. Sempre execute `cargo test` ao finalizar uma tarefa.
-3. Se nao rodar testes, explique o motivo no resumo da entrega.
+3. Se `cargo test` retornar com sucesso, faca commit e push do projeto.
+4. Se nao rodar testes, explique o motivo no resumo da entrega.
 
 **Arquitetura**
 - `src/main.rs` apenas CLI e bootstrap do servidor.
