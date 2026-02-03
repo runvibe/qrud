@@ -1,13 +1,14 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{PgPool, Row, SqlitePool};
+use url::Url;
 use uuid::Uuid;
 
 use crate::models::{Document, Workspace};
-
-const DEFAULT_WORKSPACE_NAME: &str = "default";
+use crate::services::DEFAULT_WORKSPACE_NAME;
 
 #[derive(Clone)]
 enum Backend {
@@ -18,6 +19,33 @@ enum Backend {
 #[derive(Clone)]
 pub struct Store {
     backend: Backend,
+    info: DatabaseInfo,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DatabaseInfo {
+    pub backend: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sqlite: Option<SqliteInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres: Option<PostgresInfo>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SqliteInfo {
+    pub in_memory: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PostgresInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
 }
 
 impl Store {
@@ -40,8 +68,21 @@ impl Store {
             .await
             .map_err(|err| err.to_string())?;
         migrate_sqlite(&pool).await?;
+        let info = DatabaseInfo {
+            backend: "sqlite",
+            sqlite: Some(SqliteInfo {
+                in_memory: path == ":memory:",
+                path: if path == ":memory:" {
+                    None
+                } else {
+                    Some(path.to_string())
+                },
+            }),
+            postgres: None,
+        };
         let store = Self {
             backend: Backend::Sqlite(pool),
+            info,
         };
         store.ensure_default_workspace().await?;
         Ok(store)
@@ -54,18 +95,21 @@ impl Store {
             .await
             .map_err(|err| err.to_string())?;
         migrate_postgres(&pool).await?;
+        let info = DatabaseInfo {
+            backend: "postgres",
+            sqlite: None,
+            postgres: Some(parse_postgres_info(url)),
+        };
         let store = Self {
             backend: Backend::Postgres(pool),
+            info,
         };
         store.ensure_default_workspace().await?;
         Ok(store)
     }
 
-    pub fn backend_name(&self) -> &'static str {
-        match self.backend {
-            Backend::Sqlite(_) => "sqlite",
-            Backend::Postgres(_) => "postgres",
-        }
+    pub fn database_info(&self) -> &DatabaseInfo {
+        &self.info
     }
 
     pub async fn create_workspace(
@@ -546,6 +590,26 @@ impl Store {
                 }
             }
         }
+    }
+}
+
+fn parse_postgres_info(url: &str) -> PostgresInfo {
+    let parsed = Url::parse(url).ok();
+    let host = parsed
+        .as_ref()
+        .and_then(|value| value.host_str())
+        .map(|value| value.to_string());
+    let port = parsed.as_ref().and_then(|value| value.port());
+    let database = parsed
+        .as_ref()
+        .and_then(|value| value.path_segments())
+        .and_then(|mut segments| segments.next_back())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    PostgresInfo {
+        host,
+        port,
+        database,
     }
 }
 

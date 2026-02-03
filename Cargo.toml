@@ -23,6 +23,7 @@ serde_urlencoded = "0.7.1"
 utoipa = { version = "5.0.0", features = ["macros"] }
 utoipa-axum = "0.2.0"
 uuid = { version = "1.11.0", features = ["v7"] }
+url = "2.5.4"
 
 [dev-dependencies]
 tower = { version = "0.5.2", features = ["util"] }

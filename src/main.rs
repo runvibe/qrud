@@ -28,6 +28,8 @@ struct Cli {
     sqlite: Option<String>,
     #[arg(long, value_name = "URL", conflicts_with = "sqlite")]
     postgres: Option<String>,
+    #[arg(long, default_value_t = false)]
+    use_default: bool,
 }
 
 #[tokio::main]
@@ -48,7 +50,7 @@ async fn main() {
                 .expect("failed to open sqlite db")
         }
     };
-    let state = AppState::new(store);
+    let state = AppState::new(store, cli.use_default);
 
     let app = router(state);
 

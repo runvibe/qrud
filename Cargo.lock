@@ -1090,6 +1090,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tower",
+ "url",
  "utoipa",
  "utoipa-axum",
  "uuid",

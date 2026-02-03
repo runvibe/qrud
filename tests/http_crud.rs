@@ -9,10 +9,14 @@ use qrud::routes::router;
 use qrud::services::{AppState, Store};
 
 async fn build_app() -> Router {
+    build_app_with_default(false).await
+}
+
+async fn build_app_with_default(use_default: bool) -> Router {
     let store = Store::open_sqlite(":memory:")
         .await
         .expect("failed to open db");
-    let state = AppState::new(store);
+    let state = AppState::new(store, use_default);
     router(state)
 }
 
@@ -394,6 +398,24 @@ async fn header_workspace_missing_returns_400() {
 }
 
 #[tokio::test]
+async fn use_default_workspace_when_enabled() {
+    let app = build_app_with_default(true).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        json.get("pk").and_then(|v| v.as_str()),
+        Some("/users")
+    );
+}
+
+#[tokio::test]
 async fn reserved_pk_returns_400() {
     let app = build_app().await;
     let workspace_name = create_workspace(&app).await;
@@ -607,10 +629,13 @@ async fn health_and_info_routes() {
         .unwrap();
     let (status, json) = request_json(&app, info).await;
     assert_eq!(status, StatusCode::OK);
+    let database = json.get("database").expect("database info");
+    assert_eq!(database.get("backend").and_then(|v| v.as_str()), Some("sqlite"));
     assert_eq!(
-        json.get("database")
-            .and_then(|db| db.get("backend"))
-            .and_then(|v| v.as_str()),
-        Some("sqlite")
+        database
+            .get("sqlite")
+            .and_then(|info| info.get("in_memory"))
+            .and_then(|v| v.as_bool()),
+        Some(true)
     );
 }

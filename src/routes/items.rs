@@ -5,7 +5,7 @@ use axum::Json;
 use serde_json::{json, Value as JsonValue};
 
 use crate::models::{AnyJson, Document, Workspace, WorkspaceInput, WorkspacePatch};
-use crate::services::AppState;
+use crate::services::{AppState, DEFAULT_WORKSPACE_NAME};
 
 #[utoipa::path(
     post,
@@ -332,7 +332,7 @@ pub(crate) async fn create_document_root(
     headers: HeaderMap,
     Json(payload): Json<JsonValue>,
 ) -> Response {
-    let workspace = match workspace_from_header(&headers) {
+    let workspace = match workspace_from_header(&headers, state.use_default_workspace) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -356,7 +356,7 @@ pub(crate) async fn get_document_root(
     Path(pk): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    let workspace = match workspace_from_header(&headers) {
+    let workspace = match workspace_from_header(&headers, state.use_default_workspace) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -383,7 +383,7 @@ pub(crate) async fn put_document_root(
     headers: HeaderMap,
     Json(payload): Json<JsonValue>,
 ) -> Response {
-    let workspace = match workspace_from_header(&headers) {
+    let workspace = match workspace_from_header(&headers, state.use_default_workspace) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -409,7 +409,7 @@ pub(crate) async fn patch_document_root(
     headers: HeaderMap,
     Json(payload): Json<JsonValue>,
 ) -> Response {
-    let workspace = match workspace_from_header(&headers) {
+    let workspace = match workspace_from_header(&headers, state.use_default_workspace) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -433,7 +433,7 @@ pub(crate) async fn delete_document_root(
     Path(pk): Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    let workspace = match workspace_from_header(&headers) {
+    let workspace = match workspace_from_header(&headers, state.use_default_workspace) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
@@ -460,9 +460,7 @@ pub(crate) async fn health() -> Response {
 )]
 pub(crate) async fn info(Extension(state): Extension<AppState>) -> Response {
     let payload = json!({
-        "database": {
-            "backend": state.store.backend_name()
-        }
+        "database": state.store.database_info()
     });
     (StatusCode::OK, Json(payload)).into_response()
 }
@@ -635,11 +633,19 @@ async fn ensure_workspace(state: &AppState, workspace: &str) -> Result<Workspace
     }
 }
 
-fn workspace_from_header(headers: &HeaderMap) -> Result<String, Response> {
-    let header = headers
-        .get("x-workspace-id")
-        .ok_or_else(|| json_error(StatusCode::BAD_REQUEST, "x-workspace-id header required"))?;
+fn workspace_from_header(headers: &HeaderMap, use_default: bool) -> Result<String, Response> {
+    let header = headers.get("x-workspace-id");
+    if header.is_none() {
+        if use_default {
+            return Ok(DEFAULT_WORKSPACE_NAME.to_string());
+        }
+        return Err(json_error(
+            StatusCode::BAD_REQUEST,
+            "x-workspace-id header required",
+        ));
+    }
     let value = header
+        .unwrap()
         .to_str()
         .map_err(|_| json_error(StatusCode::BAD_REQUEST, "Invalid x-workspace-id header"))?;
     let value = value.trim();

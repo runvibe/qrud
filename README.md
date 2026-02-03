@@ -10,6 +10,12 @@ SQLite em memoria (padrao):
 cargo run -- --port 3000 --sqlite
 ```
 
+SQLite em memoria com workspace default automatico:
+
+```bash
+cargo run -- --port 3000 --sqlite --use-default
+```
+
 SQLite em arquivo:
 
 ```bash
