@@ -2,6 +2,7 @@ use axum::body::{to_bytes, Body};
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::Router;
 use serde_json::Value as JsonValue;
+use tokio::time::{sleep, Duration};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -504,7 +505,106 @@ async fn document_post_conflict_returns_409() {
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
     let status = request_status(&app, duplicate).await;
-    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn document_get_by_id_path() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let id = json.get("$id").and_then(|v| v.as_str()).expect("id");
+
+    let get = Request::builder()
+        .method("GET")
+        .uri(format!("/users/{id}"))
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("$id").and_then(|v| v.as_str()), Some(id));
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
+}
+
+#[tokio::test]
+async fn document_patch_by_id_path() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let id = json.get("$id").and_then(|v| v.as_str()).expect("id");
+
+    let patch = Request::builder()
+        .method("PATCH")
+        .uri(format!("/users/{id}"))
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"role":"admin"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, patch).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("$id").and_then(|v| v.as_str()), Some(id));
+    assert_eq!(json.get("role").and_then(|v| v.as_str()), Some("admin"));
+}
+
+#[tokio::test]
+async fn allow_duplicate_pk_returns_latest() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"First"}"#))
+        .unwrap();
+    let (status, first) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    sleep(Duration::from_millis(2)).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Second"}"#))
+        .unwrap();
+    let (status, second) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_ne!(
+        first.get("$id").and_then(|v| v.as_str()),
+        second.get("$id").and_then(|v| v.as_str())
+    );
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Second"));
 }
 
 #[tokio::test]

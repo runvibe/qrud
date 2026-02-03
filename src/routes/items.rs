@@ -3,8 +3,13 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::{json, Value as JsonValue};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
+use uuid::Uuid;
 
-use crate::models::{AnyJson, Document, DocumentOutput, Workspace, WorkspaceInput, WorkspacePatch};
+use crate::models::{
+    AnyJson, Document, DocumentOutput, Workspace, WorkspaceInput, WorkspaceOutput, WorkspacePatch,
+};
 use crate::services::{AppState, DEFAULT_WORKSPACE_NAME};
 
 #[utoipa::path(
@@ -12,7 +17,7 @@ use crate::services::{AppState, DEFAULT_WORKSPACE_NAME};
     path = "/workspaces",
     request_body = WorkspaceInput,
     responses(
-        (status = 201, body = Workspace, description = "Workspace criado")
+        (status = 201, body = WorkspaceOutput, description = "Workspace criado")
     )
 )]
 pub(crate) async fn create_workspace(
@@ -31,7 +36,7 @@ pub(crate) async fn create_workspace(
         .create_workspace(name, payload.description.as_deref())
         .await
     {
-        Ok(workspace) => (StatusCode::CREATED, Json(workspace)).into_response(),
+        Ok(workspace) => (StatusCode::CREATED, Json(workspace_to_output(workspace))).into_response(),
         Err(message) if message == "Workspace already exists" => {
             json_error(StatusCode::CONFLICT, &message)
         }
@@ -43,12 +48,18 @@ pub(crate) async fn create_workspace(
     get,
     path = "/workspaces",
     responses(
-        (status = 200, body = [Workspace], description = "Lista de workspaces")
+        (status = 200, body = [WorkspaceOutput], description = "Lista de workspaces")
     )
 )]
 pub(crate) async fn list_workspaces(Extension(state): Extension<AppState>) -> Response {
     match state.store.list_workspaces().await {
-        Ok(workspaces) => (StatusCode::OK, Json(workspaces)).into_response(),
+        Ok(workspaces) => {
+            let output = workspaces
+                .into_iter()
+                .map(workspace_to_output)
+                .collect::<Vec<_>>();
+            (StatusCode::OK, Json(output)).into_response()
+        }
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
 }
@@ -60,7 +71,7 @@ pub(crate) async fn list_workspaces(Extension(state): Extension<AppState>) -> Re
         ("workspace" = String, Path, description = "Nome do workspace")
     ),
     responses(
-        (status = 200, body = Workspace, description = "Workspace encontrado"),
+        (status = 200, body = WorkspaceOutput, description = "Workspace encontrado"),
         (status = 404, description = "Nao encontrado")
     )
 )]
@@ -72,7 +83,7 @@ pub(crate) async fn get_workspace(
         return json_error(StatusCode::BAD_REQUEST, "Workspace name must be dash-case");
     }
     match state.store.fetch_workspace_by_name(&workspace).await {
-        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace)).into_response(),
+        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace_to_output(workspace))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Workspace not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
@@ -86,7 +97,7 @@ pub(crate) async fn get_workspace(
         ("workspace" = String, Path, description = "Nome do workspace")
     ),
     responses(
-        (status = 200, body = Workspace, description = "Workspace atualizado"),
+        (status = 200, body = WorkspaceOutput, description = "Workspace atualizado"),
         (status = 404, description = "Nao encontrado")
     )
 )]
@@ -110,7 +121,7 @@ pub(crate) async fn put_workspace(
         .update_workspace(&workspace, name, payload.description.as_deref())
         .await
     {
-        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace)).into_response(),
+        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace_to_output(workspace))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Workspace not found"),
         Err(message) if message == "Workspace already exists" => {
             json_error(StatusCode::CONFLICT, &message)
@@ -127,7 +138,7 @@ pub(crate) async fn put_workspace(
         ("workspace" = String, Path, description = "Nome do workspace")
     ),
     responses(
-        (status = 200, body = Workspace, description = "Workspace atualizado"),
+        (status = 200, body = WorkspaceOutput, description = "Workspace atualizado"),
         (status = 404, description = "Nao encontrado")
     )
 )]
@@ -175,7 +186,7 @@ pub(crate) async fn patch_workspace(
         )
         .await
     {
-        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace)).into_response(),
+        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace_to_output(workspace))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Workspace not found"),
         Err(message) if message == "Workspace already exists" => {
             json_error(StatusCode::CONFLICT, &message)
@@ -471,10 +482,13 @@ async fn document_create(
     pk: String,
     mut payload: JsonValue,
 ) -> Response {
-    let pk = match validate_pk(&pk) {
-        Ok(pk) => pk,
+    let selector = match parse_document_selector(&pk) {
+        Ok(selector) => selector,
         Err(resp) => return resp,
     };
+    if selector.id.is_some() {
+        return json_error(StatusCode::BAD_REQUEST, "Document id not allowed for POST");
+    }
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -486,7 +500,7 @@ async fn document_create(
 
     match state
         .store
-        .create_document(&workspace_data.id, &pk, &payload)
+        .create_document(&workspace_data.id, &selector.pk, &payload)
         .await
     {
         Ok(document) => {
@@ -500,8 +514,8 @@ async fn document_create(
 }
 
 async fn document_get(state: AppState, workspace: String, pk: String) -> Response {
-    let pk = match validate_pk(&pk) {
-        Ok(pk) => pk,
+    let selector = match parse_document_selector(&pk) {
+        Ok(selector) => selector,
         Err(resp) => return resp,
     };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
@@ -509,7 +523,13 @@ async fn document_get(state: AppState, workspace: String, pk: String) -> Respons
         Err(resp) => return resp,
     };
 
-    match state.store.fetch_document(&workspace_data.id, &pk).await {
+    let result = if let Some(id) = selector.id.as_deref() {
+        state.store.fetch_document_by_id(&workspace_data.id, id).await
+    } else {
+        state.store.fetch_document(&workspace_data.id, &selector.pk).await
+    };
+
+    match result {
         Ok(Some(doc)) => (StatusCode::OK, Json(document_to_output(doc))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -522,8 +542,8 @@ async fn document_put(
     pk: String,
     mut payload: JsonValue,
 ) -> Response {
-    let pk = match validate_pk(&pk) {
-        Ok(pk) => pk,
+    let selector = match parse_document_selector(&pk) {
+        Ok(selector) => selector,
         Err(resp) => return resp,
     };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
@@ -535,11 +555,19 @@ async fn document_put(
         map.remove("id");
     }
 
-    match state
-        .store
-        .upsert_document(&workspace_data.id, &pk, &payload)
-        .await
-    {
+    let result = if let Some(id) = selector.id.as_deref() {
+        state
+            .store
+            .upsert_document_by_id(&workspace_data.id, id, &selector.pk, &payload)
+            .await
+    } else {
+        state
+            .store
+            .upsert_document(&workspace_data.id, &selector.pk, &payload)
+            .await
+    };
+
+    match result {
         Ok((created, document)) => {
             let status = if created {
                 StatusCode::CREATED
@@ -547,6 +575,9 @@ async fn document_put(
                 StatusCode::OK
             };
             (status, Json(document_to_output(document))).into_response()
+        }
+        Err(message) if message == "Document already exists" => {
+            json_error(StatusCode::CONFLICT, &message)
         }
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
@@ -558,8 +589,8 @@ async fn document_patch(
     pk: String,
     mut payload: JsonValue,
 ) -> Response {
-    let pk = match validate_pk(&pk) {
-        Ok(pk) => pk,
+    let selector = match parse_document_selector(&pk) {
+        Ok(selector) => selector,
         Err(resp) => return resp,
     };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
@@ -573,7 +604,13 @@ async fn document_patch(
         return json_error(StatusCode::BAD_REQUEST, "Body must be a JSON object");
     }
 
-    let mut existing = match state.store.fetch_document(&workspace_data.id, &pk).await {
+    let existing_result = if let Some(id) = selector.id.as_deref() {
+        state.store.fetch_document_by_id(&workspace_data.id, id).await
+    } else {
+        state.store.fetch_document(&workspace_data.id, &selector.pk).await
+    };
+
+    let mut existing = match existing_result {
         Ok(Some(doc)) => doc,
         Ok(None) => return json_error(StatusCode::NOT_FOUND, "Document not found"),
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -592,11 +629,19 @@ async fn document_patch(
         existing_map.insert(key.clone(), value.clone());
     }
 
-    match state
-        .store
-        .update_document_data(&workspace_data.id, &pk, &existing.data)
-        .await
-    {
+    let update_result = if let Some(id) = selector.id.as_deref() {
+        state
+            .store
+            .update_document_data_by_id(&workspace_data.id, id, &existing.data)
+            .await
+    } else {
+        state
+            .store
+            .update_document_data(&workspace_data.id, &selector.pk, &existing.data)
+            .await
+    };
+
+    match update_result {
         Ok(Some(document)) => (StatusCode::OK, Json(document_to_output(document))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -604,8 +649,8 @@ async fn document_patch(
 }
 
 async fn document_delete(state: AppState, workspace: String, pk: String) -> Response {
-    let pk = match validate_pk(&pk) {
-        Ok(pk) => pk,
+    let selector = match parse_document_selector(&pk) {
+        Ok(selector) => selector,
         Err(resp) => return resp,
     };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
@@ -613,7 +658,19 @@ async fn document_delete(state: AppState, workspace: String, pk: String) -> Resp
         Err(resp) => return resp,
     };
 
-    match state.store.delete_document(&workspace_data.id, &pk).await {
+    let result = if let Some(id) = selector.id.as_deref() {
+        state
+            .store
+            .delete_document_by_id(&workspace_data.id, id)
+            .await
+    } else {
+        state
+            .store
+            .delete_document(&workspace_data.id, &selector.pk)
+            .await
+    };
+
+    match result {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => json_error(StatusCode::NOT_FOUND, "Document not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -683,6 +740,39 @@ fn validate_pk(pk: &str) -> Result<String, Response> {
     Ok(normalized)
 }
 
+struct DocumentSelector {
+    pk: String,
+    id: Option<String>,
+}
+
+fn parse_document_selector(raw: &str) -> Result<DocumentSelector, Response> {
+    let normalized = normalize_pk(raw);
+    let trimmed = normalized.trim_matches('/');
+    if trimmed.is_empty() {
+        let pk = validate_pk(&normalized)?;
+        return Ok(DocumentSelector { pk, id: None });
+    }
+
+    let segments: Vec<&str> = trimmed.split('/').collect();
+    let last = segments.last().copied().unwrap_or_default();
+    if Uuid::parse_str(last).is_ok() {
+        let parent_segments = &segments[..segments.len().saturating_sub(1)];
+        let parent = if parent_segments.is_empty() {
+            "/".to_string()
+        } else {
+            format!("/{}", parent_segments.join("/"))
+        };
+        let pk = validate_pk(&parent)?;
+        return Ok(DocumentSelector {
+            pk,
+            id: Some(last.to_string()),
+        });
+    }
+
+    let pk = validate_pk(&normalized)?;
+    Ok(DocumentSelector { pk, id: None })
+}
+
 fn is_reserved_pk(pk: &str) -> bool {
     let trimmed = pk.trim_end_matches('/');
     let value = trimmed.strip_prefix('/').unwrap_or(trimmed);
@@ -700,16 +790,16 @@ fn document_to_output(document: Document) -> JsonValue {
     output.insert("$id".to_string(), JsonValue::String(document.id));
     output.insert(
         "$created_at".to_string(),
-        JsonValue::Number(document.created_at.into()),
+        JsonValue::String(format_millis_iso(document.created_at)),
     );
     output.insert(
         "$updated_at".to_string(),
-        JsonValue::Number(document.updated_at.into()),
+        JsonValue::String(format_millis_iso(document.updated_at)),
     );
     if let Some(deleted_at) = document.deleted_at {
         output.insert(
             "$deleted_at".to_string(),
-            JsonValue::Number(deleted_at.into()),
+            JsonValue::String(format_millis_iso(deleted_at)),
         );
     }
 
@@ -731,6 +821,24 @@ fn document_to_output(document: Document) -> JsonValue {
     }
 
     JsonValue::Object(output)
+}
+
+fn workspace_to_output(workspace: Workspace) -> WorkspaceOutput {
+    WorkspaceOutput {
+        id: workspace.id,
+        name: workspace.name,
+        description: workspace.description,
+        created_at: format_millis_iso(workspace.created_at),
+        updated_at: format_millis_iso(workspace.updated_at),
+        deleted_at: workspace.deleted_at.map(format_millis_iso),
+    }
+}
+
+fn format_millis_iso(millis: i64) -> String {
+    let nanos = i128::from(millis) * 1_000_000;
+    let datetime = OffsetDateTime::from_unix_timestamp_nanos(nanos)
+        .unwrap_or_else(|_| OffsetDateTime::from_unix_timestamp(0).unwrap());
+    datetime.format(&Rfc3339).unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
 }
 
 fn is_dash_case(value: &str) -> bool {

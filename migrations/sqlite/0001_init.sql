@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS documents (
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS documents_workspace_pk_idx
+CREATE INDEX IF NOT EXISTS documents_workspace_pk_idx
     ON documents(workspace_id, pk);
 
 CREATE INDEX IF NOT EXISTS documents_workspace_idx

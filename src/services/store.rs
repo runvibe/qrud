@@ -318,15 +318,27 @@ impl Store {
         pk: &str,
         data: &serde_json::Value,
     ) -> Result<Document, String> {
-        if self
-            .fetch_document_including_deleted(workspace_id, pk)
-            .await?
-            .is_some()
-        {
-            return Err("Document already exists".to_string());
-        }
-
         let id = new_uuid();
+        self.insert_document(workspace_id, &id, pk, data).await
+    }
+
+    pub async fn create_document_with_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
+        pk: &str,
+        data: &serde_json::Value,
+    ) -> Result<Document, String> {
+        self.insert_document(workspace_id, id, pk, data).await
+    }
+
+    async fn insert_document(
+        &self,
+        workspace_id: &str,
+        id: &str,
+        pk: &str,
+        data: &serde_json::Value,
+    ) -> Result<Document, String> {
         let now = now_millis();
         let data = serde_json::to_string(data).map_err(|err| err.to_string())?;
 
@@ -336,7 +348,7 @@ impl Store {
                     "INSERT INTO documents (id, workspace_id, pk, data, created_at, updated_at, deleted_at)
                      VALUES (?, ?, ?, ?, ?, ?, NULL);",
                 )
-                .bind(&id)
+                .bind(id)
                 .bind(workspace_id)
                 .bind(pk)
                 .bind(&data)
@@ -351,7 +363,7 @@ impl Store {
                     "INSERT INTO documents (id, workspace_id, pk, data, created_at, updated_at, deleted_at)
                      VALUES ($1, $2, $3, $4, $5, $6, NULL);",
                 )
-                .bind(&id)
+                .bind(id)
                 .bind(workspace_id)
                 .bind(pk)
                 .bind(&data)
@@ -364,7 +376,7 @@ impl Store {
         }
 
         Ok(Document {
-            id,
+            id: id.to_string(),
             workspace_id: workspace_id.to_string(),
             pk: pk.to_string(),
             data: serde_json::from_str(&data).map_err(|err| err.to_string())?,
@@ -396,10 +408,47 @@ impl Store {
         Ok((true, created))
     }
 
+    pub async fn upsert_document_by_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
+        pk: &str,
+        data: &serde_json::Value,
+    ) -> Result<(bool, Document), String> {
+        let existing = self
+            .fetch_document_including_deleted_by_id(workspace_id, id)
+            .await?;
+
+        if let Some(doc) = existing {
+            let updated = self
+                .update_document_data_by_id(workspace_id, id, data)
+                .await?
+                .unwrap_or(doc);
+            return Ok((false, updated));
+        }
+
+        let created = self.create_document_with_id(workspace_id, id, pk, data).await?;
+        Ok((true, created))
+    }
+
     pub async fn update_document_data(
         &self,
         workspace_id: &str,
         pk: &str,
+        data: &serde_json::Value,
+    ) -> Result<Option<Document>, String> {
+        let existing = self.fetch_document(workspace_id, pk).await?;
+        let Some(doc) = existing else {
+            return Ok(None);
+        };
+        self.update_document_data_by_id(workspace_id, &doc.id, data)
+            .await
+    }
+
+    pub async fn update_document_data_by_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
         data: &serde_json::Value,
     ) -> Result<Option<Document>, String> {
         let now = now_millis();
@@ -410,12 +459,12 @@ impl Store {
                 sqlx::query(
                     "UPDATE documents
                      SET data = ?, updated_at = ?, deleted_at = NULL
-                     WHERE workspace_id = ? AND pk = ?;",
+                     WHERE workspace_id = ? AND id = ?;",
                 )
                 .bind(&data)
                 .bind(now)
                 .bind(workspace_id)
-                .bind(pk)
+                .bind(id)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -425,12 +474,12 @@ impl Store {
                 sqlx::query(
                     "UPDATE documents
                      SET data = $1, updated_at = $2, deleted_at = NULL
-                     WHERE workspace_id = $3 AND pk = $4;",
+                     WHERE workspace_id = $3 AND id = $4;",
                 )
                 .bind(&data)
                 .bind(now)
                 .bind(workspace_id)
-                .bind(pk)
+                .bind(id)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -442,7 +491,7 @@ impl Store {
             return Ok(None);
         }
 
-        self.fetch_document(workspace_id, pk).await
+        self.fetch_document_by_id(workspace_id, id).await
     }
 
     pub async fn fetch_document(
@@ -453,19 +502,40 @@ impl Store {
         self.fetch_document_row(workspace_id, pk, false).await
     }
 
+    pub async fn fetch_document_by_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
+    ) -> Result<Option<Document>, String> {
+        self.fetch_document_row_by_id(workspace_id, id, false)
+            .await
+    }
+
     pub async fn delete_document(&self, workspace_id: &str, pk: &str) -> Result<bool, String> {
+        let existing = self.fetch_document(workspace_id, pk).await?;
+        let Some(doc) = existing else {
+            return Ok(false);
+        };
+        self.delete_document_by_id(workspace_id, &doc.id).await
+    }
+
+    pub async fn delete_document_by_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
+    ) -> Result<bool, String> {
         let now = now_millis();
         let affected = match &self.backend {
             Backend::Sqlite(pool) => {
                 sqlx::query(
                     "UPDATE documents
                      SET deleted_at = ?, updated_at = ?
-                     WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL;",
+                     WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL;",
                 )
                 .bind(now)
                 .bind(now)
                 .bind(workspace_id)
-                .bind(pk)
+                .bind(id)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -475,12 +545,12 @@ impl Store {
                 sqlx::query(
                     "UPDATE documents
                      SET deleted_at = $1, updated_at = $2
-                     WHERE workspace_id = $3 AND pk = $4 AND deleted_at IS NULL;",
+                     WHERE workspace_id = $3 AND id = $4 AND deleted_at IS NULL;",
                 )
                 .bind(now)
                 .bind(now)
                 .bind(workspace_id)
-                .bind(pk)
+                .bind(id)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -490,7 +560,6 @@ impl Store {
 
         Ok(affected > 0)
     }
-
     pub async fn workspace_exists_by_name(&self, name: &str) -> Result<bool, String> {
         let exists = match &self.backend {
             Backend::Sqlite(pool) => {
@@ -544,6 +613,14 @@ impl Store {
         self.fetch_document_row(workspace_id, pk, true).await
     }
 
+    async fn fetch_document_including_deleted_by_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
+    ) -> Result<Option<Document>, String> {
+        self.fetch_document_row_by_id(workspace_id, id, true).await
+    }
+
     async fn fetch_document_row(
         &self,
         workspace_id: &str,
@@ -554,10 +631,16 @@ impl Store {
             Backend::Sqlite(pool) => {
                 let sql = if include_deleted {
                     "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
-                     FROM documents WHERE workspace_id = ? AND pk = ?;"
+                     FROM documents
+                     WHERE workspace_id = ? AND pk = ?
+                     ORDER BY updated_at DESC
+                     LIMIT 1;"
                 } else {
                     "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
-                     FROM documents WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL;"
+                     FROM documents
+                     WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
+                     ORDER BY updated_at DESC
+                     LIMIT 1;"
                 };
                 let row = sqlx::query(sql)
                     .bind(workspace_id)
@@ -573,14 +656,68 @@ impl Store {
             Backend::Postgres(pool) => {
                 let sql = if include_deleted {
                     "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
-                     FROM documents WHERE workspace_id = $1 AND pk = $2;"
+                     FROM documents
+                     WHERE workspace_id = $1 AND pk = $2
+                     ORDER BY updated_at DESC
+                     LIMIT 1;"
                 } else {
                     "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
-                     FROM documents WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL;"
+                     FROM documents
+                     WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
+                     ORDER BY updated_at DESC
+                     LIMIT 1;"
                 };
                 let row = sqlx::query(sql)
                     .bind(workspace_id)
                     .bind(pk)
+                    .fetch_optional(pool)
+                    .await
+                    .map_err(|err| err.to_string())?;
+                match row {
+                    Some(row) => Ok(Some(document_from_postgres(row)?)),
+                    None => Ok(None),
+                }
+            }
+        }
+    }
+
+    async fn fetch_document_row_by_id(
+        &self,
+        workspace_id: &str,
+        id: &str,
+        include_deleted: bool,
+    ) -> Result<Option<Document>, String> {
+        match &self.backend {
+            Backend::Sqlite(pool) => {
+                let sql = if include_deleted {
+                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                     FROM documents WHERE workspace_id = ? AND id = ?;"
+                } else {
+                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                     FROM documents WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL;"
+                };
+                let row = sqlx::query(sql)
+                    .bind(workspace_id)
+                    .bind(id)
+                    .fetch_optional(pool)
+                    .await
+                    .map_err(|err| err.to_string())?;
+                match row {
+                    Some(row) => Ok(Some(document_from_sqlite(row)?)),
+                    None => Ok(None),
+                }
+            }
+            Backend::Postgres(pool) => {
+                let sql = if include_deleted {
+                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                     FROM documents WHERE workspace_id = $1 AND id = $2;"
+                } else {
+                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                     FROM documents WHERE workspace_id = $1 AND id = $2 AND deleted_at IS NULL;"
+                };
+                let row = sqlx::query(sql)
+                    .bind(workspace_id)
+                    .bind(id)
                     .fetch_optional(pool)
                     .await
                     .map_err(|err| err.to_string())?;

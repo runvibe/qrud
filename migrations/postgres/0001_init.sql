@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS documents (
     deleted_at BIGINT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS documents_workspace_pk_idx
+CREATE INDEX IF NOT EXISTS documents_workspace_pk_idx
     ON documents(workspace_id, pk);
 
 CREATE INDEX IF NOT EXISTS documents_workspace_idx
