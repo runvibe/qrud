@@ -524,10 +524,11 @@ impl Store {
         offset: i64,
     ) -> Result<Vec<Document>, String> {
         let offset = offset.max(0);
-        let term = term.map(|value| format!("%{}%", value));
+        let term_exact = term.map(|value| value.to_string());
+        let term_like = term.map(|value| format!("%{}%", value));
         match &self.backend {
             Backend::Sqlite(pool) => {
-                let (sql, bind_limit, bind_offset) = if term.is_some() {
+                let (sql, bind_limit, bind_offset) = if term_exact.is_some() {
                     (
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
@@ -539,7 +540,23 @@ impl Store {
                            OR lower(coalesce(json_extract(data, '$.category'), '')) LIKE ?
                            OR lower(coalesce(json_extract(data, '$.description'), '')) LIKE ?
                          )
-                         ORDER BY updated_at DESC
+                         ORDER BY
+                           CASE
+                             WHEN coalesce(json_extract(data, '$.name'), '') = ? THEN 0
+                             WHEN coalesce(json_extract(data, '$.title'), '') = ? THEN 1
+                             WHEN coalesce(json_extract(data, '$.label'), '') = ? THEN 2
+                             WHEN coalesce(json_extract(data, '$.reference'), '') = ? THEN 3
+                             WHEN coalesce(json_extract(data, '$.category'), '') = ? THEN 4
+                             WHEN coalesce(json_extract(data, '$.description'), '') = ? THEN 5
+                             WHEN lower(coalesce(json_extract(data, '$.name'), '')) = ? THEN 6
+                             WHEN lower(coalesce(json_extract(data, '$.title'), '')) = ? THEN 7
+                             WHEN lower(coalesce(json_extract(data, '$.label'), '')) = ? THEN 8
+                             WHEN lower(coalesce(json_extract(data, '$.reference'), '')) = ? THEN 9
+                             WHEN lower(coalesce(json_extract(data, '$.category'), '')) = ? THEN 10
+                             WHEN lower(coalesce(json_extract(data, '$.description'), '')) = ? THEN 11
+                             ELSE 12
+                           END,
+                           updated_at DESC
                          LIMIT ? OFFSET ?;",
                         true,
                         true,
@@ -567,9 +584,18 @@ impl Store {
                 };
 
                 let mut query = sqlx::query(sql).bind(workspace_id).bind(pk);
-                if let Some(term) = term.as_ref() {
+                if let (Some(term_exact), Some(term_like)) =
+                    (term_exact.as_ref(), term_like.as_ref())
+                {
+                    let term_lower = term_exact.to_lowercase();
                     for _ in 0..6 {
-                        query = query.bind(term);
+                        query = query.bind(term_like);
+                    }
+                    for _ in 0..6 {
+                        query = query.bind(term_exact);
+                    }
+                    for _ in 0..6 {
+                        query = query.bind(term_lower.clone());
                     }
                 }
                 if bind_limit {
@@ -587,7 +613,7 @@ impl Store {
                     .collect::<Result<Vec<_>, _>>()
             }
             Backend::Postgres(pool) => {
-                let (sql, bind_limit, bind_offset) = if term.is_some() {
+                let (sql, bind_limit, bind_offset) = if term_exact.is_some() {
                     (
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
@@ -599,8 +625,24 @@ impl Store {
                            OR lower(coalesce(data::jsonb->>'category', '')) LIKE $7
                            OR lower(coalesce(data::jsonb->>'description', '')) LIKE $8
                          )
-                         ORDER BY updated_at DESC
-                         LIMIT $9 OFFSET $10;",
+                         ORDER BY
+                           CASE
+                             WHEN coalesce(data::jsonb->>'name', '') = $9 THEN 0
+                             WHEN coalesce(data::jsonb->>'title', '') = $10 THEN 1
+                             WHEN coalesce(data::jsonb->>'label', '') = $11 THEN 2
+                             WHEN coalesce(data::jsonb->>'reference', '') = $12 THEN 3
+                             WHEN coalesce(data::jsonb->>'category', '') = $13 THEN 4
+                             WHEN coalesce(data::jsonb->>'description', '') = $14 THEN 5
+                             WHEN lower(coalesce(data::jsonb->>'name', '')) = $15 THEN 6
+                             WHEN lower(coalesce(data::jsonb->>'title', '')) = $16 THEN 7
+                             WHEN lower(coalesce(data::jsonb->>'label', '')) = $17 THEN 8
+                             WHEN lower(coalesce(data::jsonb->>'reference', '')) = $18 THEN 9
+                             WHEN lower(coalesce(data::jsonb->>'category', '')) = $19 THEN 10
+                             WHEN lower(coalesce(data::jsonb->>'description', '')) = $20 THEN 11
+                             ELSE 12
+                           END,
+                           updated_at DESC
+                         LIMIT $21 OFFSET $22;",
                         true,
                         true,
                     )
@@ -627,9 +669,18 @@ impl Store {
                 };
 
                 let mut query = sqlx::query(sql).bind(workspace_id).bind(pk);
-                if let Some(term) = term.as_ref() {
+                if let (Some(term_exact), Some(term_like)) =
+                    (term_exact.as_ref(), term_like.as_ref())
+                {
+                    let term_lower = term_exact.to_lowercase();
                     for _ in 0..6 {
-                        query = query.bind(term);
+                        query = query.bind(term_like);
+                    }
+                    for _ in 0..6 {
+                        query = query.bind(term_exact);
+                    }
+                    for _ in 0..6 {
+                        query = query.bind(term_lower.clone());
                     }
                 }
                 if bind_limit {
