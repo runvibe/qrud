@@ -166,7 +166,8 @@ async fn post_document_ignores_payload_id() {
 
     let request = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"id":"should-ignore","name":"Ana"}"#))
         .unwrap();
@@ -189,7 +190,8 @@ async fn put_document_creates_and_updates() {
 
     let request = Request::builder()
         .method("PUT")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Bea"}"#))
         .unwrap();
@@ -200,7 +202,8 @@ async fn put_document_creates_and_updates() {
 
     let update = Request::builder()
         .method("PUT")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Carlos"}"#))
         .unwrap();
@@ -222,7 +225,8 @@ async fn patch_document_merges_fields() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/products"))
+        .uri("/products".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Car","description":"Base"}"#))
         .unwrap();
@@ -231,7 +235,8 @@ async fn patch_document_merges_fields() {
 
     let patch = Request::builder()
         .method("PATCH")
-        .uri(format!("/workspaces/{workspace_name}/documents/products"))
+        .uri("/products".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"description":"Updated","id":"999"}"#))
         .unwrap();
@@ -259,7 +264,8 @@ async fn delete_document_then_get_returns_404() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/sessions"))
+        .uri("/sessions".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"One"}"#))
         .unwrap();
@@ -267,7 +273,8 @@ async fn delete_document_then_get_returns_404() {
 
     let delete = Request::builder()
         .method("DELETE")
-        .uri(format!("/workspaces/{workspace_name}/documents/sessions"))
+        .uri("/sessions".to_string())
+        .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
     let status = request_status(&app, delete).await;
@@ -275,7 +282,8 @@ async fn delete_document_then_get_returns_404() {
 
     let get = Request::builder()
         .method("GET")
-        .uri(format!("/workspaces/{workspace_name}/documents/sessions"))
+        .uri("/sessions".to_string())
+        .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
     let status = request_status(&app, get).await;
@@ -289,7 +297,7 @@ async fn header_workspace_routes_work() {
 
     let create = Request::builder()
         .method("POST")
-        .uri("/documents/users")
+        .uri("/users")
         .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
@@ -299,7 +307,7 @@ async fn header_workspace_routes_work() {
 
     let get = Request::builder()
         .method("GET")
-        .uri("/documents/users")
+        .uri("/users")
         .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
@@ -348,7 +356,7 @@ async fn header_workspace_missing_returns_400() {
 
     let create = Request::builder()
         .method("POST")
-        .uri("/documents/users")
+        .uri("/users")
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -363,7 +371,8 @@ async fn document_requires_existing_workspace() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{fake_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", fake_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -378,7 +387,8 @@ async fn document_pk_is_normalized() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -394,7 +404,8 @@ async fn document_id_is_uuid_v7() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -412,7 +423,8 @@ async fn get_document_success() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -420,7 +432,8 @@ async fn get_document_success() {
 
     let get = Request::builder()
         .method("GET")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
     let (status, json) = request_json(&app, get).await;
@@ -438,7 +451,8 @@ async fn document_post_conflict_returns_409() {
 
     let create = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -447,7 +461,8 @@ async fn document_post_conflict_returns_409() {
 
     let duplicate = Request::builder()
         .method("POST")
-        .uri(format!("/workspaces/{workspace_name}/documents/users"))
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
         .unwrap();
@@ -462,7 +477,7 @@ async fn header_document_put_patch_delete() {
 
     let put = Request::builder()
         .method("PUT")
-        .uri("/documents/users")
+        .uri("/users")
         .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"name":"Ana"}"#))
@@ -473,7 +488,7 @@ async fn header_document_put_patch_delete() {
 
     let patch = Request::builder()
         .method("PATCH")
-        .uri("/documents/users")
+        .uri("/users")
         .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"role":"admin"}"#))
@@ -484,7 +499,7 @@ async fn header_document_put_patch_delete() {
 
     let delete = Request::builder()
         .method("DELETE")
-        .uri("/documents/users")
+        .uri("/users")
         .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
@@ -497,7 +512,7 @@ async fn header_workspace_invalid_value_returns_400() {
     let app = build_app().await;
 
     let mut builder = Request::builder();
-    builder = builder.method("GET").uri("/documents/users");
+    builder = builder.method("GET").uri("/users");
     let request = builder
         .header(
             "x-workspace-id",
@@ -520,58 +535,6 @@ async fn openapi_route_available() {
     let (status, json) = request_json(&app, request).await;
     assert_eq!(status, StatusCode::OK);
     assert!(json.get("openapi").is_some());
-}
-
-#[tokio::test]
-async fn short_routes_work() {
-    let app = build_app().await;
-
-    let create = Request::builder()
-        .method("POST")
-        .uri("/w")
-        .header("content-type", "application/json")
-        .body(Body::from(r#"{"name":"alpha"}"#))
-        .unwrap();
-    let status = request_status(&app, create).await;
-    assert_eq!(status, StatusCode::CREATED);
-
-    let list = Request::builder()
-        .method("GET")
-        .uri("/w")
-        .body(Body::empty())
-        .unwrap();
-    let (status, json) = request_json(&app, list).await;
-    assert_eq!(status, StatusCode::OK);
-    let names = json
-        .as_array()
-        .expect("workspace list")
-        .iter()
-        .filter_map(|item| item.get("name").and_then(|v| v.as_str()))
-        .collect::<Vec<_>>();
-    assert!(names.contains(&"alpha"));
-
-    let create_doc = Request::builder()
-        .method("POST")
-        .uri("/d/users")
-        .header("x-workspace-id", "alpha")
-        .header("content-type", "application/json")
-        .body(Body::from(r#"{"name":"Ana"}"#))
-        .unwrap();
-    let status = request_status(&app, create_doc).await;
-    assert_eq!(status, StatusCode::CREATED);
-
-    let get_doc = Request::builder()
-        .method("GET")
-        .uri("/d/users")
-        .header("x-workspace-id", "alpha")
-        .body(Body::empty())
-        .unwrap();
-    let (status, json) = request_json(&app, get_doc).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
-        Some("Ana")
-    );
 }
 
 #[tokio::test]

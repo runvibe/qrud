@@ -64,63 +64,35 @@ curl -X PATCH http://localhost:3000/workspaces/<workspace_name> \
 curl -X DELETE http://localhost:3000/workspaces/<workspace_name>
 ```
 
-### Documents por workspace
+### Documents
 
 ```bash
-curl -X POST http://localhost:3000/workspaces/<workspace_name>/documents/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Ana"}'
-```
-
-```bash
-curl http://localhost:3000/workspaces/<workspace_name>/documents/users
-```
-
-```bash
-curl -X PUT http://localhost:3000/workspaces/<workspace_name>/documents/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Bea"}'
-```
-
-```bash
-curl -X PATCH http://localhost:3000/workspaces/<workspace_name>/documents/users \
-  -H 'Content-Type: application/json' \
-  -d '{"role":"admin"}'
-```
-
-```bash
-curl -X DELETE http://localhost:3000/workspaces/<workspace_name>/documents/users
-```
-
-### Documents via header
-
-```bash
-curl -X POST http://localhost:3000/documents/users \
+curl -X POST http://localhost:3000/users \
   -H 'Content-Type: application/json' \
   -H 'x-workspace-id: <workspace_name>' \
   -d '{"name":"Ana"}'
 ```
 
 ```bash
-curl http://localhost:3000/documents/users \
+curl http://localhost:3000/users \
   -H 'x-workspace-id: <workspace_name>'
 ```
 
 ```bash
-curl -X PUT http://localhost:3000/documents/users \
+curl -X PUT http://localhost:3000/users \
   -H 'Content-Type: application/json' \
   -H 'x-workspace-id: <workspace_name>' \
   -d '{"name":"Bea"}'
 ```
 
 ```bash
-curl -X PATCH http://localhost:3000/documents/users \
+curl -X PATCH http://localhost:3000/users \
   -H 'Content-Type: application/json' \
   -H 'x-workspace-id: <workspace_name>' \
   -d '{"role":"admin"}'
 ```
 
 ```bash
-curl -X DELETE http://localhost:3000/documents/users \
+curl -X DELETE http://localhost:3000/users \
   -H 'x-workspace-id: <workspace_name>'
 ```

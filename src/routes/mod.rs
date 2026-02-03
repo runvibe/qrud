@@ -18,40 +18,12 @@ pub fn router(state: AppState) -> Router {
             items::patch_workspace,
             items::delete_workspace
         ))
-        .routes(routes!(items::list_workspaces_short, items::create_workspace_short))
-        .routes(routes!(
-            items::get_workspace_short,
-            items::put_workspace_short,
-            items::patch_workspace_short,
-            items::delete_workspace_short
-        ))
-        .routes(routes!(
-            items::get_document,
-            items::create_document,
-            items::put_document,
-            items::patch_document,
-            items::delete_document
-        ))
-        .routes(routes!(
-            items::get_document_with_header,
-            items::create_document_with_header,
-            items::put_document_with_header,
-            items::patch_document_with_header,
-            items::delete_document_with_header
-        ))
         .routes(routes!(
             items::get_document_root,
             items::create_document_root,
             items::put_document_root,
             items::patch_document_root,
             items::delete_document_root
-        ))
-        .routes(routes!(
-            items::get_document_short,
-            items::create_document_short,
-            items::put_document_short,
-            items::patch_document_short,
-            items::delete_document_short
         ))
         .routes(routes!(items::health))
         .routes(routes!(items::info))
