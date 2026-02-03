@@ -362,6 +362,29 @@ pub(crate) async fn create_document_with_header(
 
 #[utoipa::path(
     post,
+    path = "/{*pk}",
+    request_body = AnyJson,
+    params(
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 201, body = Document, description = "Documento criado"),
+        (status = 400, description = "Workspace nao informado"),
+        (status = 404, description = "Workspace nao encontrado"),
+        (status = 409, description = "Documento ja existe")
+    )
+)]
+pub(crate) async fn create_document_root(
+    Extension(state): Extension<AppState>,
+    Path(pk): Path<String>,
+    headers: HeaderMap,
+    Json(payload): Json<JsonValue>,
+) -> Response {
+    create_document_with_header(Extension(state), Path(pk), headers, Json(payload)).await
+}
+
+#[utoipa::path(
+    post,
     path = "/d/{*pk}",
     request_body = AnyJson,
     params(
@@ -424,6 +447,26 @@ pub(crate) async fn get_document_with_header(
         Err(resp) => return resp,
     };
     document_get(state, workspace, pk).await
+}
+
+#[utoipa::path(
+    get,
+    path = "/{*pk}",
+    params(
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 200, body = Document, description = "Documento encontrado"),
+        (status = 400, description = "Workspace nao informado"),
+        (status = 404, description = "Nao encontrado")
+    )
+)]
+pub(crate) async fn get_document_root(
+    Extension(state): Extension<AppState>,
+    Path(pk): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    get_document_with_header(Extension(state), Path(pk), headers).await
 }
 
 #[utoipa::path(
@@ -493,6 +536,29 @@ pub(crate) async fn put_document_with_header(
         Err(resp) => return resp,
     };
     document_put(state, workspace, pk, payload).await
+}
+
+#[utoipa::path(
+    put,
+    path = "/{*pk}",
+    request_body = AnyJson,
+    params(
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 200, body = Document, description = "Documento atualizado"),
+        (status = 201, body = Document, description = "Documento criado"),
+        (status = 400, description = "Workspace nao informado"),
+        (status = 404, description = "Workspace nao encontrado")
+    )
+)]
+pub(crate) async fn put_document_root(
+    Extension(state): Extension<AppState>,
+    Path(pk): Path<String>,
+    headers: HeaderMap,
+    Json(payload): Json<JsonValue>,
+) -> Response {
+    put_document_with_header(Extension(state), Path(pk), headers, Json(payload)).await
 }
 
 #[utoipa::path(
@@ -567,6 +633,28 @@ pub(crate) async fn patch_document_with_header(
 
 #[utoipa::path(
     patch,
+    path = "/{*pk}",
+    request_body = AnyJson,
+    params(
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 200, body = Document, description = "Documento atualizado"),
+        (status = 400, description = "Workspace nao informado"),
+        (status = 404, description = "Nao encontrado")
+    )
+)]
+pub(crate) async fn patch_document_root(
+    Extension(state): Extension<AppState>,
+    Path(pk): Path<String>,
+    headers: HeaderMap,
+    Json(payload): Json<JsonValue>,
+) -> Response {
+    patch_document_with_header(Extension(state), Path(pk), headers, Json(payload)).await
+}
+
+#[utoipa::path(
+    patch,
     path = "/d/{*pk}",
     request_body = AnyJson,
     params(
@@ -628,6 +716,26 @@ pub(crate) async fn delete_document_with_header(
         Err(resp) => return resp,
     };
     document_delete(state, workspace, pk).await
+}
+
+#[utoipa::path(
+    delete,
+    path = "/{*pk}",
+    params(
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 204, description = "Removido"),
+        (status = 400, description = "Workspace nao informado"),
+        (status = 404, description = "Nao encontrado")
+    )
+)]
+pub(crate) async fn delete_document_root(
+    Extension(state): Extension<AppState>,
+    Path(pk): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    delete_document_with_header(Extension(state), Path(pk), headers).await
 }
 
 #[utoipa::path(

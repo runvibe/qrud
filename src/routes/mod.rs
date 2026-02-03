@@ -40,6 +40,13 @@ pub fn router(state: AppState) -> Router {
             items::delete_document_with_header
         ))
         .routes(routes!(
+            items::get_document_root,
+            items::create_document_root,
+            items::put_document_root,
+            items::patch_document_root,
+            items::delete_document_root
+        ))
+        .routes(routes!(
             items::get_document_short,
             items::create_document_short,
             items::put_document_short,

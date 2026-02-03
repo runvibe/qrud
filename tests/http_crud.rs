@@ -312,6 +312,37 @@ async fn header_workspace_routes_work() {
 }
 
 #[tokio::test]
+async fn root_document_routes_work() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/posts")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"title":"Oi"}"#))
+        .unwrap();
+    let (status, _) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/posts")
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        json.get("data")
+            .and_then(|v| v.get("title"))
+            .and_then(|v| v.as_str()),
+        Some("Oi")
+    );
+}
+
+#[tokio::test]
 async fn header_workspace_missing_returns_400() {
     let app = build_app().await;
 
