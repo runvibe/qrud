@@ -2,6 +2,9 @@
 name = "qrud"
 version = "0.1.0"
 edition = "2024"
+description = "Servidor HTTP de mock com semantica CRUD."
+authors = ["Philippe Assis <codephilippe@gmail.com>"]
+license = "Apache-2.0"
 
 [dependencies]
 axum = "0.8.8"
