@@ -25,6 +25,13 @@ pub fn router(state: AppState) -> Router {
             items::patch_document_root,
             items::delete_document_root
         ))
+        .routes(routes!(
+            items::get_document_workspace,
+            items::create_document_workspace,
+            items::put_document_workspace,
+            items::patch_document_workspace,
+            items::delete_document_workspace
+        ))
         .routes(routes!(items::health))
         .routes(routes!(items::info))
         .split_for_parts();

@@ -64,7 +64,7 @@ curl -X PATCH http://localhost:3000/workspaces/<workspace_name> \
 curl -X DELETE http://localhost:3000/workspaces/<workspace_name>
 ```
 
-### Documents
+### Documents via header
 
 ```bash
 curl -X POST http://localhost:3000/users \
@@ -95,4 +95,32 @@ curl -X PATCH http://localhost:3000/users \
 ```bash
 curl -X DELETE http://localhost:3000/users \
   -H 'x-workspace-id: <workspace_name>'
+```
+
+### Documents via workspace no path
+
+```bash
+curl -X POST http://localhost:3000/workspaces/<workspace_name>/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Oi"}'
+```
+
+```bash
+curl http://localhost:3000/workspaces/<workspace_name>/posts
+```
+
+```bash
+curl -X PUT http://localhost:3000/workspaces/<workspace_name>/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Novo"}'
+```
+
+```bash
+curl -X PATCH http://localhost:3000/workspaces/<workspace_name>/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"ok"}'
+```
+
+```bash
+curl -X DELETE http://localhost:3000/workspaces/<workspace_name>/posts
 ```

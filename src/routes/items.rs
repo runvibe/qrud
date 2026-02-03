@@ -211,6 +211,109 @@ pub(crate) async fn delete_workspace(
 
 #[utoipa::path(
     post,
+    path = "/workspaces/{workspace}/{*pk}",
+    request_body = AnyJson,
+    params(
+        ("workspace" = String, Path, description = "Nome do workspace"),
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 201, body = Document, description = "Documento criado"),
+        (status = 404, description = "Workspace nao encontrado"),
+        (status = 409, description = "Documento ja existe")
+    )
+)]
+pub(crate) async fn create_document_workspace(
+    Extension(state): Extension<AppState>,
+    Path((workspace, pk)): Path<(String, String)>,
+    Json(payload): Json<JsonValue>,
+) -> Response {
+    document_create(state, workspace, pk, payload).await
+}
+
+#[utoipa::path(
+    get,
+    path = "/workspaces/{workspace}/{*pk}",
+    params(
+        ("workspace" = String, Path, description = "Nome do workspace"),
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 200, body = Document, description = "Documento encontrado"),
+        (status = 404, description = "Nao encontrado")
+    )
+)]
+pub(crate) async fn get_document_workspace(
+    Extension(state): Extension<AppState>,
+    Path((workspace, pk)): Path<(String, String)>,
+) -> Response {
+    document_get(state, workspace, pk).await
+}
+
+#[utoipa::path(
+    put,
+    path = "/workspaces/{workspace}/{*pk}",
+    request_body = AnyJson,
+    params(
+        ("workspace" = String, Path, description = "Nome do workspace"),
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 200, body = Document, description = "Documento atualizado"),
+        (status = 201, body = Document, description = "Documento criado"),
+        (status = 404, description = "Workspace nao encontrado")
+    )
+)]
+pub(crate) async fn put_document_workspace(
+    Extension(state): Extension<AppState>,
+    Path((workspace, pk)): Path<(String, String)>,
+    Json(payload): Json<JsonValue>,
+) -> Response {
+    document_put(state, workspace, pk, payload).await
+}
+
+#[utoipa::path(
+    patch,
+    path = "/workspaces/{workspace}/{*pk}",
+    request_body = AnyJson,
+    params(
+        ("workspace" = String, Path, description = "Nome do workspace"),
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 200, body = Document, description = "Documento atualizado"),
+        (status = 404, description = "Nao encontrado")
+    )
+)]
+pub(crate) async fn patch_document_workspace(
+    Extension(state): Extension<AppState>,
+    Path((workspace, pk)): Path<(String, String)>,
+    Json(payload): Json<JsonValue>,
+) -> Response {
+    document_patch(state, workspace, pk, payload).await
+}
+
+#[utoipa::path(
+    delete,
+    path = "/workspaces/{workspace}/{*pk}",
+    params(
+        ("workspace" = String, Path, description = "Nome do workspace"),
+        ("pk" = String, Path, description = "Path key do documento")
+    ),
+    responses(
+        (status = 204, description = "Removido"),
+        (status = 404, description = "Nao encontrado")
+    )
+)]
+pub(crate) async fn delete_document_workspace(
+    Extension(state): Extension<AppState>,
+    Path((workspace, pk)): Path<(String, String)>,
+) -> Response {
+    document_delete(state, workspace, pk).await
+}
+
+#[utoipa::path(
+    post,
     path = "/{*pk}",
     request_body = AnyJson,
     params(
