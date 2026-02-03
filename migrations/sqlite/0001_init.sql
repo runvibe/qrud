@@ -35,3 +35,6 @@ CREATE INDEX IF NOT EXISTS documents_workspace_label_idx
 
 CREATE INDEX IF NOT EXISTS documents_workspace_description_idx
     ON documents(workspace_id, json_extract(data, '$.description'));
+
+CREATE INDEX IF NOT EXISTS documents_workspace_description_idx
+    ON documents(workspace_id, json_extract(data, '$.category'));
