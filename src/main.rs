@@ -29,7 +29,9 @@ async fn main() {
         .parse()
         .expect("invalid host/port");
 
-    let store = Store::open(&cli.db).expect("failed to open sqlite db");
+    let store = Store::open(&cli.db)
+        .await
+        .expect("failed to open sqlite db");
     let state = AppState::new(store);
 
     let app = router(state);

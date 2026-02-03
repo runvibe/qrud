@@ -1,253 +1,225 @@
-use sqlite::{Connection, State as SqlState};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{Sqlite, SqlitePool};
 
+#[derive(Clone)]
 pub struct Store {
-    conn: Connection,
+    pool: SqlitePool,
 }
 
 impl Store {
-    pub fn open(path: &str) -> Result<Self, String> {
-        let conn = sqlite::open(path).map_err(|err| err.to_string())?;
-        init_db(&conn)?;
-        Ok(Self { conn })
-    }
-
-    pub fn next_id_for(&mut self, collection: &str) -> Result<i64, String> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT next_id FROM counters WHERE collection = ?;")
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-
-        let next_id = if let SqlState::Row = statement.next().map_err(|err| err.to_string())? {
-            statement
-                .read::<i64, _>(0)
-                .map_err(|err| err.to_string())?
+    pub async fn open(path: &str) -> Result<Self, String> {
+        let options = if path == ":memory:" {
+            SqliteConnectOptions::new()
+                .in_memory(true)
+                .shared_cache(true)
         } else {
-            max_id_for(&self.conn, collection)? + 1
+            SqliteConnectOptions::new()
+                .filename(path)
+                .create_if_missing(true)
         };
 
-        let mut update = self
-            .conn
-            .prepare(
-                "INSERT INTO counters (collection, next_id)
-                 VALUES (?, ?)
-                 ON CONFLICT(collection) DO UPDATE SET next_id = excluded.next_id;",
-            )
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
             .map_err(|err| err.to_string())?;
-        update
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        update
-            .bind((2, next_id + 1))
-            .map_err(|err| err.to_string())?;
-        update.next().map_err(|err| err.to_string())?;
+        init_db(&pool).await?;
+        Ok(Self { pool })
+    }
 
+    pub async fn next_id_for(&self, collection: &str) -> Result<i64, String> {
+        let mut tx = self.pool.begin().await.map_err(|err| err.to_string())?;
+
+        let next_id = match sqlx::query_scalar::<_, i64>(
+            "SELECT next_id FROM counters WHERE collection = ?;",
+        )
+        .bind(collection)
+        .fetch_optional(tx.as_mut())
+        .await
+        .map_err(|err| err.to_string())?
+        {
+            Some(value) => value,
+            None => max_id_for(&mut tx, collection).await? + 1,
+        };
+
+        sqlx::query(
+            "INSERT INTO counters (collection, next_id)
+             VALUES (?, ?)
+             ON CONFLICT(collection) DO UPDATE SET next_id = excluded.next_id;",
+        )
+        .bind(collection)
+        .bind(next_id + 1)
+        .execute(tx.as_mut())
+        .await
+        .map_err(|err| err.to_string())?;
+
+        tx.commit().await.map_err(|err| err.to_string())?;
         Ok(next_id)
     }
 
-    pub fn bump_next_id(&mut self, collection: &str, used_id: i64) -> Result<(), String> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT next_id FROM counters WHERE collection = ?;")
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
+    pub async fn bump_next_id(&self, collection: &str, used_id: i64) -> Result<(), String> {
+        let mut tx = self.pool.begin().await.map_err(|err| err.to_string())?;
 
-        let current_next = if let SqlState::Row = statement.next().map_err(|err| err.to_string())? {
-            statement
-                .read::<i64, _>(0)
-                .map_err(|err| err.to_string())?
-        } else {
-            max_id_for(&self.conn, collection)? + 1
+        let current_next = match sqlx::query_scalar::<_, i64>(
+            "SELECT next_id FROM counters WHERE collection = ?;",
+        )
+        .bind(collection)
+        .fetch_optional(tx.as_mut())
+        .await
+        .map_err(|err| err.to_string())?
+        {
+            Some(value) => value,
+            None => max_id_for(&mut tx, collection).await? + 1,
         };
 
         let desired_next = (used_id + 1).max(current_next);
-        let mut update = self
-            .conn
-            .prepare(
-                "INSERT INTO counters (collection, next_id)
-                 VALUES (?, ?)
-                 ON CONFLICT(collection) DO UPDATE SET next_id = excluded.next_id;",
-            )
-            .map_err(|err| err.to_string())?;
-        update
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        update
-            .bind((2, desired_next))
-            .map_err(|err| err.to_string())?;
-        update.next().map_err(|err| err.to_string())?;
+        sqlx::query(
+            "INSERT INTO counters (collection, next_id)
+             VALUES (?, ?)
+             ON CONFLICT(collection) DO UPDATE SET next_id = excluded.next_id;",
+        )
+        .bind(collection)
+        .bind(desired_next)
+        .execute(tx.as_mut())
+        .await
+        .map_err(|err| err.to_string())?;
+
+        tx.commit().await.map_err(|err| err.to_string())?;
         Ok(())
     }
 
-    pub fn insert_item(&mut self, collection: &str, id: i64, data: &str) -> Result<(), String> {
-        let mut statement = self
-            .conn
-            .prepare("INSERT INTO items (collection, id, data) VALUES (?, ?, ?);")
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        statement.bind((2, id)).map_err(|err| err.to_string())?;
-        statement
-            .bind((3, data))
-            .map_err(|err| err.to_string())?;
-        statement.next().map_err(|err| err.to_string())?;
-        Ok(())
-    }
-
-    pub fn upsert_item(
-        &mut self,
+    pub async fn insert_item(
+        &self,
         collection: &str,
         id: i64,
         data: &str,
     ) -> Result<(), String> {
-        let mut statement = self
-            .conn
-            .prepare(
-                "INSERT INTO items (collection, id, data)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT(collection, id) DO UPDATE SET data = excluded.data;",
-            )
+        sqlx::query("INSERT INTO items (collection, id, data) VALUES (?, ?, ?);")
+            .bind(collection)
+            .bind(id)
+            .bind(data)
+            .execute(&self.pool)
+            .await
             .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        statement.bind((2, id)).map_err(|err| err.to_string())?;
-        statement
-            .bind((3, data))
-            .map_err(|err| err.to_string())?;
-        statement.next().map_err(|err| err.to_string())?;
         Ok(())
     }
 
-    pub fn update_item(&mut self, collection: &str, id: i64, data: &str) -> Result<(), String> {
-        let mut statement = self
-            .conn
-            .prepare("UPDATE items SET data = ? WHERE collection = ? AND id = ?;")
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, data))
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((2, collection))
-            .map_err(|err| err.to_string())?;
-        statement.bind((3, id)).map_err(|err| err.to_string())?;
-        statement.next().map_err(|err| err.to_string())?;
+    pub async fn upsert_item(
+        &self,
+        collection: &str,
+        id: i64,
+        data: &str,
+    ) -> Result<(), String> {
+        sqlx::query(
+            "INSERT INTO items (collection, id, data)
+             VALUES (?, ?, ?)
+             ON CONFLICT(collection, id) DO UPDATE SET data = excluded.data;",
+        )
+        .bind(collection)
+        .bind(id)
+        .bind(data)
+        .execute(&self.pool)
+        .await
+        .map_err(|err| err.to_string())?;
         Ok(())
     }
 
-    pub fn item_exists(&mut self, collection: &str, id: i64) -> Result<bool, String> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT 1 FROM items WHERE collection = ? AND id = ? LIMIT 1;")
+    pub async fn update_item(
+        &self,
+        collection: &str,
+        id: i64,
+        data: &str,
+    ) -> Result<(), String> {
+        sqlx::query("UPDATE items SET data = ? WHERE collection = ? AND id = ?;")
+            .bind(data)
+            .bind(collection)
+            .bind(id)
+            .execute(&self.pool)
+            .await
             .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        statement.bind((2, id)).map_err(|err| err.to_string())?;
-        Ok(matches!(
-            statement.next().map_err(|err| err.to_string())?,
-            SqlState::Row
-        ))
+        Ok(())
     }
 
-    pub fn fetch_item_data(
-        &mut self,
+    pub async fn item_exists(&self, collection: &str, id: i64) -> Result<bool, String> {
+        let exists = sqlx::query_scalar::<_, i64>(
+            "SELECT 1 FROM items WHERE collection = ? AND id = ? LIMIT 1;",
+        )
+        .bind(collection)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|err| err.to_string())?
+        .is_some();
+        Ok(exists)
+    }
+
+    pub async fn fetch_item_data(
+        &self,
         collection: &str,
         id: i64,
     ) -> Result<Option<String>, String> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT data FROM items WHERE collection = ? AND id = ?;")
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        statement.bind((2, id)).map_err(|err| err.to_string())?;
-        if let SqlState::Row = statement.next().map_err(|err| err.to_string())? {
-            let data = statement
-                .read::<String, _>(0)
-                .map_err(|err| err.to_string())?;
-            Ok(Some(data))
-        } else {
-            Ok(None)
-        }
+        sqlx::query_scalar::<_, String>(
+            "SELECT data FROM items WHERE collection = ? AND id = ?;",
+        )
+        .bind(collection)
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|err| err.to_string())
     }
 
-    pub fn delete_item(&mut self, collection: &str, id: i64) -> Result<bool, String> {
-        if !self.item_exists(collection, id)? {
-            return Ok(false);
-        }
-        let mut statement = self
-            .conn
-            .prepare("DELETE FROM items WHERE collection = ? AND id = ?;")
+    pub async fn delete_item(&self, collection: &str, id: i64) -> Result<bool, String> {
+        let result = sqlx::query("DELETE FROM items WHERE collection = ? AND id = ?;")
+            .bind(collection)
+            .bind(id)
+            .execute(&self.pool)
+            .await
             .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-        statement.bind((2, id)).map_err(|err| err.to_string())?;
-        statement.next().map_err(|err| err.to_string())?;
-        Ok(true)
+        Ok(result.rows_affected() > 0)
     }
 
-    pub fn list_collection(&mut self, collection: &str) -> Result<Vec<String>, String> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT data FROM items WHERE collection = ? ORDER BY id ASC;")
-            .map_err(|err| err.to_string())?;
-        statement
-            .bind((1, collection))
-            .map_err(|err| err.to_string())?;
-
-        let mut rows = Vec::new();
-        while let SqlState::Row = statement.next().map_err(|err| err.to_string())? {
-            let data = statement
-                .read::<String, _>(0)
-                .map_err(|err| err.to_string())?;
-            rows.push(data);
-        }
-        Ok(rows)
+    pub async fn list_collection(&self, collection: &str) -> Result<Vec<String>, String> {
+        sqlx::query_scalar::<_, String>(
+            "SELECT data FROM items WHERE collection = ? ORDER BY id ASC;",
+        )
+        .bind(collection)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|err| err.to_string())
     }
 }
 
-fn init_db(connection: &Connection) -> Result<(), String> {
-    connection
-        .execute(
-            "CREATE TABLE IF NOT EXISTS items (
-                collection TEXT NOT NULL,
-                id INTEGER NOT NULL,
-                data TEXT NOT NULL,
-                PRIMARY KEY (collection, id)
-            );",
-        )
-        .map_err(|err| err.to_string())?;
-    connection
-        .execute(
-            "CREATE TABLE IF NOT EXISTS counters (
-                collection TEXT PRIMARY KEY,
-                next_id INTEGER NOT NULL
-            );",
-        )
-        .map_err(|err| err.to_string())?;
+async fn init_db(pool: &SqlitePool) -> Result<(), String> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS items (
+            collection TEXT NOT NULL,
+            id INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            PRIMARY KEY (collection, id)
+        );",
+    )
+    .execute(pool)
+    .await
+    .map_err(|err| err.to_string())?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS counters (
+            collection TEXT PRIMARY KEY,
+            next_id INTEGER NOT NULL
+        );",
+    )
+    .execute(pool)
+    .await
+    .map_err(|err| err.to_string())?;
     Ok(())
 }
 
-fn max_id_for(conn: &Connection, collection: &str) -> Result<i64, String> {
-    let mut statement = conn
-        .prepare("SELECT COALESCE(MAX(id), 0) FROM items WHERE collection = ?;")
-        .map_err(|err| err.to_string())?;
-    statement
-        .bind((1, collection))
-        .map_err(|err| err.to_string())?;
-    if let SqlState::Row = statement.next().map_err(|err| err.to_string())? {
-        statement
-            .read::<i64, _>(0)
-            .map_err(|err| err.to_string())
-    } else {
-        Ok(0)
-    }
+async fn max_id_for(
+    tx: &mut sqlx::Transaction<'_, Sqlite>,
+    collection: &str,
+) -> Result<i64, String> {
+    sqlx::query_scalar::<_, i64>("SELECT COALESCE(MAX(id), 0) FROM items WHERE collection = ?;")
+        .bind(collection)
+        .fetch_one(tx.as_mut())
+        .await
+        .map_err(|err| err.to_string())
 }

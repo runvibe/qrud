@@ -5,7 +5,7 @@ use axum::Json;
 use serde_json::{json, Value as JsonValue};
 
 use crate::models::{AnyJson, ListQuery, DEFAULT_FIELDS};
-use crate::services::{lock_store, AppState};
+use crate::services::AppState;
 
 #[utoipa::path(
     get,
@@ -30,7 +30,7 @@ pub(crate) async fn list_collection(
         Ok(query) => query,
         Err(resp) => return resp,
     };
-    list_items(state, &collection, query)
+    list_items(state, &collection, query).await
 }
 
 #[utoipa::path(
@@ -54,8 +54,7 @@ pub(crate) async fn create_item(
         _ => return json_error(StatusCode::BAD_REQUEST, "Body must be a JSON object"),
     };
 
-    let mut store = lock_store(&state);
-    let id = match store.next_id_for(&collection) {
+    let id = match state.store.next_id_for(&collection).await {
         Ok(id) => id,
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     };
@@ -67,7 +66,7 @@ pub(crate) async fn create_item(
         Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
     };
 
-    if let Err(message) = store.insert_item(&collection, id, &data) {
+    if let Err(message) = state.store.insert_item(&collection, id, &data).await {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message);
     }
 
@@ -90,13 +89,11 @@ pub(crate) async fn get_item(
     State(state): State<AppState>,
     Path((collection, id)): Path<(String, i64)>,
 ) -> Response {
-    let mut store = lock_store(&state);
-    let data = match store.fetch_item_data(&collection, id) {
+    let data = match state.store.fetch_item_data(&collection, id).await {
         Ok(Some(value)) => value,
         Ok(None) => return json_error(StatusCode::NOT_FOUND, "Item not found"),
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     };
-    drop(store);
 
     let json_value = match serde_json::from_str::<JsonValue>(&data) {
         Ok(value) => value,
@@ -137,16 +134,15 @@ pub(crate) async fn put_item(
         Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
     };
 
-    let mut store = lock_store(&state);
-    let existed = match store.item_exists(&collection, id) {
+    let existed = match state.store.item_exists(&collection, id).await {
         Ok(value) => value,
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     };
 
-    if let Err(message) = store.upsert_item(&collection, id, &data) {
+    if let Err(message) = state.store.upsert_item(&collection, id, &data).await {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message);
     }
-    if let Err(message) = store.bump_next_id(&collection, id) {
+    if let Err(message) = state.store.bump_next_id(&collection, id).await {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message);
     }
 
@@ -177,8 +173,7 @@ pub(crate) async fn patch_item(
         _ => return json_error(StatusCode::BAD_REQUEST, "Body must be a JSON object"),
     };
 
-    let mut store = lock_store(&state);
-    let existing_data = match store.fetch_item_data(&collection, id) {
+    let existing_data = match state.store.fetch_item_data(&collection, id).await {
         Ok(Some(data)) => data,
         Ok(None) => return json_error(StatusCode::NOT_FOUND, "Item not found"),
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -208,7 +203,7 @@ pub(crate) async fn patch_item(
         Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
     };
 
-    if let Err(message) = store.update_item(&collection, id, &data) {
+    if let Err(message) = state.store.update_item(&collection, id, &data).await {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message);
     }
 
@@ -231,8 +226,7 @@ pub(crate) async fn delete_item(
     State(state): State<AppState>,
     Path((collection, id)): Path<(String, i64)>,
 ) -> Response {
-    let mut store = lock_store(&state);
-    let deleted = match store.delete_item(&collection, id) {
+    let deleted = match state.store.delete_item(&collection, id).await {
         Ok(value) => value,
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     };
@@ -244,13 +238,11 @@ pub(crate) async fn delete_item(
     StatusCode::NO_CONTENT.into_response()
 }
 
-fn list_items(state: AppState, collection: &str, query: ListQuery) -> Response {
-    let mut store = lock_store(&state);
-    let rows = match store.list_collection(collection) {
+async fn list_items(state: AppState, collection: &str, query: ListQuery) -> Response {
+    let rows = match state.store.list_collection(collection).await {
         Ok(value) => value,
         Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     };
-    drop(store);
 
     let mut items = Vec::new();
     for data in rows {

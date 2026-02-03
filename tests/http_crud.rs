@@ -7,8 +7,10 @@ use tower::ServiceExt;
 use qrud::routes::router;
 use qrud::services::{AppState, Store};
 
-fn build_app() -> Router {
-    let store = Store::open(":memory:").expect("failed to open db");
+async fn build_app() -> Router {
+    let store = Store::open(":memory:")
+        .await
+        .expect("failed to open db");
     let state = AppState::new(store);
     router(state)
 }
@@ -33,7 +35,7 @@ async fn request_status(app: &Router, request: Request<Body>) -> StatusCode {
 
 #[tokio::test]
 async fn post_ignores_payload_id_and_autoincrements() {
-    let app = build_app();
+    let app = build_app().await;
     let request = Request::builder()
         .method("POST")
         .uri("/users")
@@ -49,7 +51,7 @@ async fn post_ignores_payload_id_and_autoincrements() {
 
 #[tokio::test]
 async fn put_creates_and_bumps_counter_for_next_post() {
-    let app = build_app();
+    let app = build_app().await;
     let request = Request::builder()
         .method("PUT")
         .uri("/users/5")
@@ -75,7 +77,7 @@ async fn put_creates_and_bumps_counter_for_next_post() {
 
 #[tokio::test]
 async fn patch_merges_fields_and_keeps_id() {
-    let app = build_app();
+    let app = build_app().await;
     let create = Request::builder()
         .method("POST")
         .uri("/products")
@@ -106,7 +108,7 @@ async fn patch_merges_fields_and_keeps_id() {
 
 #[tokio::test]
 async fn list_filters_and_paginates() {
-    let app = build_app();
+    let app = build_app().await;
     let create1 = Request::builder()
         .method("POST")
         .uri("/items")
@@ -153,7 +155,7 @@ async fn list_filters_and_paginates() {
 
 #[tokio::test]
 async fn delete_then_get_returns_404() {
-    let app = build_app();
+    let app = build_app().await;
     let create = Request::builder()
         .method("POST")
         .uri("/sessions")
