@@ -61,6 +61,13 @@ impl Store {
         Ok(store)
     }
 
+    pub fn backend_name(&self) -> &'static str {
+        match self.backend {
+            Backend::Sqlite(_) => "sqlite",
+            Backend::Postgres(_) => "postgres",
+        }
+    }
+
     pub async fn create_workspace(
         &self,
         name: &str,

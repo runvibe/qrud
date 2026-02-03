@@ -542,3 +542,35 @@ async fn short_routes_work() {
         Some("Ana")
     );
 }
+
+#[tokio::test]
+async fn health_and_info_routes() {
+    let app = build_app().await;
+
+    let health = Request::builder()
+        .method("GET")
+        .uri("/health")
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(health).await.expect("request failed");
+    let status = response.status();
+    let body = to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .expect("read body");
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(String::from_utf8_lossy(&body), "OK");
+
+    let info = Request::builder()
+        .method("GET")
+        .uri("/info")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, info).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        json.get("database")
+            .and_then(|db| db.get("backend"))
+            .and_then(|v| v.as_str()),
+        Some("sqlite")
+    );
+}

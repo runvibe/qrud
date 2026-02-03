@@ -18,6 +18,13 @@ pub fn router(state: AppState) -> Router {
             items::patch_workspace,
             items::delete_workspace
         ))
+        .routes(routes!(items::list_workspaces_short, items::create_workspace_short))
+        .routes(routes!(
+            items::get_workspace_short,
+            items::put_workspace_short,
+            items::patch_workspace_short,
+            items::delete_workspace_short
+        ))
         .routes(routes!(
             items::get_document,
             items::create_document,
@@ -32,6 +39,15 @@ pub fn router(state: AppState) -> Router {
             items::patch_document_with_header,
             items::delete_document_with_header
         ))
+        .routes(routes!(
+            items::get_document_short,
+            items::create_document_short,
+            items::put_document_short,
+            items::patch_document_short,
+            items::delete_document_short
+        ))
+        .routes(routes!(items::health))
+        .routes(routes!(items::info))
         .split_for_parts();
 
     let api_json = serde_json::to_value(&api).expect("failed to serialize openapi");
@@ -39,25 +55,6 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .merge(router)
-        .route(
-            "/w",
-            get(items::list_workspaces).post(items::create_workspace),
-        )
-        .route(
-            "/w/{workspace}",
-            get(items::get_workspace)
-                .put(items::put_workspace)
-                .patch(items::patch_workspace)
-                .delete(items::delete_workspace),
-        )
-        .route(
-            "/d/{*pk}",
-            get(items::get_document_with_header)
-                .post(items::create_document_with_header)
-                .put(items::put_document_with_header)
-                .patch(items::patch_document_with_header)
-                .delete(items::delete_document_with_header),
-        )
         .route(
             "/openapi.json",
             get({
