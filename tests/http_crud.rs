@@ -35,11 +35,15 @@ async fn request_status(app: &Router, request: Request<Body>) -> StatusCode {
 }
 
 async fn create_workspace(app: &Router) -> String {
+    create_workspace_named(app, "Main").await
+}
+
+async fn create_workspace_named(app: &Router, name: &str) -> String {
     let request = Request::builder()
         .method("POST")
         .uri("/workspaces")
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"name":"Main"}"#))
+        .body(Body::from(format!(r#"{{"name":"{}"}}"#, name)))
         .unwrap();
     let (status, json) = request_json(app, request).await;
     assert_eq!(status, StatusCode::CREATED);
@@ -47,6 +51,101 @@ async fn create_workspace(app: &Router) -> String {
         .and_then(|value| value.as_str())
         .expect("workspace id")
         .to_string()
+}
+
+#[tokio::test]
+async fn workspace_crud_flow() {
+    let app = build_app().await;
+
+    let created_id = create_workspace_named(&app, "Alpha").await;
+    assert!(Uuid::parse_str(&created_id).is_ok());
+
+    let list = Request::builder()
+        .method("GET")
+        .uri("/workspaces")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, list).await;
+    assert_eq!(status, StatusCode::OK);
+    let array = json.as_array().expect("workspace list");
+    assert_eq!(array.len(), 1);
+
+    let get = Request::builder()
+        .method("GET")
+        .uri(format!("/workspaces/{created_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Alpha"));
+
+    let update = Request::builder()
+        .method("PUT")
+        .uri(format!("/workspaces/{created_id}"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Beta","description":"Team"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, update).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Beta"));
+    assert_eq!(
+        json.get("description").and_then(|v| v.as_str()),
+        Some("Team")
+    );
+
+    let patch = Request::builder()
+        .method("PATCH")
+        .uri(format!("/workspaces/{created_id}"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"description":"Ops"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, patch).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Beta"));
+    assert_eq!(
+        json.get("description").and_then(|v| v.as_str()),
+        Some("Ops")
+    );
+
+    let delete = Request::builder()
+        .method("DELETE")
+        .uri(format!("/workspaces/{created_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let status = request_status(&app, delete).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let get = Request::builder()
+        .method("GET")
+        .uri(format!("/workspaces/{created_id}"))
+        .body(Body::empty())
+        .unwrap();
+    let status = request_status(&app, get).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn workspace_validation_errors() {
+    let app = build_app().await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/workspaces")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"   "}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let workspace_id = create_workspace(&app).await;
+    let patch = Request::builder()
+        .method("PATCH")
+        .uri(format!("/workspaces/{workspace_id}"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{}"#))
+        .unwrap();
+    let status = request_status(&app, patch).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -199,4 +298,67 @@ async fn header_workspace_routes_work() {
         json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
         Some("Ana")
     );
+}
+
+#[tokio::test]
+async fn header_workspace_missing_returns_400() {
+    let app = build_app().await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/documents/users")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn document_requires_existing_workspace() {
+    let app = build_app().await;
+    let fake_id = Uuid::now_v7().to_string();
+
+    let create = Request::builder()
+        .method("POST")
+        .uri(format!("/workspaces/{fake_id}/documents/users"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn document_pk_is_normalized() {
+    let app = build_app().await;
+    let workspace_id = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri(format!("/workspaces/{workspace_id}/documents/users"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(json.get("pk").and_then(|v| v.as_str()), Some("/users"));
+}
+
+#[tokio::test]
+async fn document_id_is_uuid_v7() {
+    let app = build_app().await;
+    let workspace_id = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri(format!("/workspaces/{workspace_id}/documents/users"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let id = json.get("id").and_then(|v| v.as_str()).expect("id");
+    let uuid = Uuid::parse_str(id).expect("uuid");
+    assert_eq!(uuid.get_version(), Some(uuid::Version::SortRand));
 }
