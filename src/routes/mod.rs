@@ -11,12 +11,26 @@ use crate::services::AppState;
 
 pub fn router(state: AppState) -> Router {
     let (router, api) = OpenApiRouter::with_openapi(build_openapi())
-        .routes(routes!(items::list_collection, items::create_item))
+        .routes(routes!(items::list_workspaces, items::create_workspace))
         .routes(routes!(
-            items::get_item,
-            items::put_item,
-            items::patch_item,
-            items::delete_item
+            items::get_workspace,
+            items::put_workspace,
+            items::patch_workspace,
+            items::delete_workspace
+        ))
+        .routes(routes!(
+            items::get_document,
+            items::create_document,
+            items::put_document,
+            items::patch_document,
+            items::delete_document
+        ))
+        .routes(routes!(
+            items::get_document_with_header,
+            items::create_document_with_header,
+            items::put_document_with_header,
+            items::patch_document_with_header,
+            items::delete_document_with_header
         ))
         .with_state(state)
         .split_for_parts();

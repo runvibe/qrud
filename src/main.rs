@@ -18,8 +18,16 @@ struct Cli {
     host: String,
     #[arg(long, default_value_t = DEFAULT_PORT)]
     port: u16,
-    #[arg(long, default_value = ":memory:")]
-    db: String,
+    #[arg(
+        long,
+        value_name = "PATH",
+        default_missing_value = ":memory:",
+        num_args = 0..=1,
+        conflicts_with = "postgres"
+    )]
+    sqlite: Option<String>,
+    #[arg(long, value_name = "URL", conflicts_with = "sqlite")]
+    postgres: Option<String>,
 }
 
 #[tokio::main]
@@ -29,9 +37,17 @@ async fn main() {
         .parse()
         .expect("invalid host/port");
 
-    let store = Store::open(&cli.db)
-        .await
-        .expect("failed to open sqlite db");
+    let store = match cli.postgres {
+        Some(url) => Store::open_postgres(&url)
+            .await
+            .expect("failed to open postgres db"),
+        None => {
+            let path = cli.sqlite.as_deref().unwrap_or(":memory:");
+            Store::open_sqlite(path)
+                .await
+                .expect("failed to open sqlite db")
+        }
+    };
     let state = AppState::new(store);
 
     let app = router(state);

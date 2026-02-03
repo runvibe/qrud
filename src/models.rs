@@ -1,14 +1,43 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-pub const DEFAULT_FIELDS: [&str; 5] = ["name", "title", "label", "description", "category"];
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkspaceInput {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
 
-#[derive(Debug, Default, Clone)]
-pub struct ListQuery {
-    pub term: Option<String>,
-    pub filter: Vec<String>,
-    pub limit: Option<usize>,
-    pub offset: Option<usize>,
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkspacePatch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Workspace {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Document {
+    pub id: String,
+    pub workspace_id: String,
+    pub pk: String,
+    pub data: serde_json::Value,
+    pub created_at: i64,
+    pub updated_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
