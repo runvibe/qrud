@@ -547,9 +547,24 @@ async fn document_get(
         .map(|value| value.trim().to_lowercase())
         .filter(|value| !value.is_empty());
 
+    let order_str = match params.order.as_deref() {
+        None => "desc",
+        Some("asc") => "asc",
+        Some("desc") => "desc",
+        Some(_) => return json_error(StatusCode::BAD_REQUEST, "Invalid order"),
+    };
+    let order_desc = order_str == "desc";
+
     match state
         .store
-        .fetch_documents_by_pk(&workspace_data.id, &selector.pk, term.as_deref(), limit, offset)
+        .fetch_documents_by_pk(
+            &workspace_data.id,
+            &selector.pk,
+            term.as_deref(),
+            limit,
+            offset,
+            order_desc,
+        )
         .await
     {
         Ok(docs) => {
@@ -567,7 +582,8 @@ async fn document_get(
                 "items": items,
                 "total": total,
                 "limit": limit_used,
-                "offset": offset
+                "offset": offset,
+                "order": order_str
             });
             (StatusCode::OK, Json(payload)).into_response()
         }
@@ -789,7 +805,9 @@ pub(crate) struct ListParams {
     limit: Option<i64>,
     offset: Option<i64>,
     term: Option<String>,
+    order: Option<String>,
 }
+
 
 fn parse_document_selector(raw: &str) -> Result<DocumentSelector, Response> {
     let normalized = normalize_pk(raw);

@@ -522,14 +522,16 @@ impl Store {
         term: Option<&str>,
         limit: Option<i64>,
         offset: i64,
+        order_desc: bool,
     ) -> Result<Vec<Document>, String> {
         let offset = offset.max(0);
         let term_exact = term.map(|value| value.to_string());
         let term_like = term.map(|value| format!("%{}%", value));
+        let order_dir = if order_desc { "DESC" } else { "ASC" };
         match &self.backend {
             Backend::Sqlite(pool) => {
                 let (sql, bind_limit, bind_offset) = if term_exact.is_some() {
-                    (
+                    let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL AND (
@@ -556,34 +558,34 @@ impl Store {
                              WHEN lower(coalesce(json_extract(data, '$.description'), '')) = ? THEN 11
                              ELSE 12
                            END,
-                           updated_at DESC
+                           created_at {order_dir}
                          LIMIT ? OFFSET ?;",
-                        true,
-                        true,
-                    )
+                        order_dir = order_dir
+                    );
+                    (sql, true, true)
                 } else if limit.is_some() {
-                    (
+                    let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
-                         ORDER BY updated_at DESC
+                         ORDER BY created_at {order_dir}
                          LIMIT ? OFFSET ?;",
-                        true,
-                        true,
-                    )
+                        order_dir = order_dir
+                    );
+                    (sql, true, true)
                 } else {
-                    (
+                    let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
-                         ORDER BY updated_at DESC
+                         ORDER BY created_at {order_dir}
                          LIMIT -1 OFFSET ?;",
-                        false,
-                        true,
-                    )
+                        order_dir = order_dir
+                    );
+                    (sql, false, true)
                 };
 
-                let mut query = sqlx::query(sql).bind(workspace_id).bind(pk);
+                let mut query = sqlx::query(&sql).bind(workspace_id).bind(pk);
                 if let (Some(term_exact), Some(term_like)) =
                     (term_exact.as_ref(), term_like.as_ref())
                 {
@@ -614,7 +616,7 @@ impl Store {
             }
             Backend::Postgres(pool) => {
                 let (sql, bind_limit, bind_offset) = if term_exact.is_some() {
-                    (
+                    let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL AND (
@@ -641,34 +643,34 @@ impl Store {
                              WHEN lower(coalesce(data::jsonb->>'description', '')) = $20 THEN 11
                              ELSE 12
                            END,
-                           updated_at DESC
+                           created_at {order_dir}
                          LIMIT $21 OFFSET $22;",
-                        true,
-                        true,
-                    )
+                        order_dir = order_dir
+                    );
+                    (sql, true, true)
                 } else if limit.is_some() {
-                    (
+                    let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
-                         ORDER BY updated_at DESC
+                         ORDER BY created_at {order_dir}
                          LIMIT $3 OFFSET $4;",
-                        true,
-                        true,
-                    )
+                        order_dir = order_dir
+                    );
+                    (sql, true, true)
                 } else {
-                    (
+                    let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
-                         ORDER BY updated_at DESC
+                         ORDER BY created_at {order_dir}
                          OFFSET $3;",
-                        false,
-                        true,
-                    )
+                        order_dir = order_dir
+                    );
+                    (sql, false, true)
                 };
 
-                let mut query = sqlx::query(sql).bind(workspace_id).bind(pk);
+                let mut query = sqlx::query(&sql).bind(workspace_id).bind(pk);
                 if let (Some(term_exact), Some(term_like)) =
                     (term_exact.as_ref(), term_like.as_ref())
                 {
