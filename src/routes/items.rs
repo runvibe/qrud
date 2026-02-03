@@ -250,7 +250,7 @@ pub(crate) async fn create_document_workspace(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = DocumentOutput, description = "Documento encontrado"),
+        (status = 200, body = [DocumentOutput], description = "Documento encontrado"),
         (status = 404, description = "Nao encontrado")
     )
 )]
@@ -523,15 +523,24 @@ async fn document_get(state: AppState, workspace: String, pk: String) -> Respons
         Err(resp) => return resp,
     };
 
-    let result = if let Some(id) = selector.id.as_deref() {
-        state.store.fetch_document_by_id(&workspace_data.id, id).await
-    } else {
-        state.store.fetch_document(&workspace_data.id, &selector.pk).await
-    };
+    if let Some(id) = selector.id.as_deref() {
+        return match state.store.fetch_document_by_id(&workspace_data.id, id).await {
+            Ok(Some(doc)) => (StatusCode::OK, Json(document_to_output(doc))).into_response(),
+            Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
+            Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
+        };
+    }
 
-    match result {
-        Ok(Some(doc)) => (StatusCode::OK, Json(document_to_output(doc))).into_response(),
-        Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
+    match state
+        .store
+        .fetch_documents_by_pk(&workspace_data.id, &selector.pk)
+        .await
+    {
+        Ok(docs) if docs.is_empty() => json_error(StatusCode::NOT_FOUND, "Document not found"),
+        Ok(docs) => {
+            let output = docs.into_iter().map(document_to_output).collect::<Vec<_>>();
+            (StatusCode::OK, Json(output)).into_response()
+        }
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
 }

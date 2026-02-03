@@ -502,6 +502,47 @@ impl Store {
         self.fetch_document_row(workspace_id, pk, false).await
     }
 
+    pub async fn fetch_documents_by_pk(
+        &self,
+        workspace_id: &str,
+        pk: &str,
+    ) -> Result<Vec<Document>, String> {
+        match &self.backend {
+            Backend::Sqlite(pool) => {
+                let rows = sqlx::query(
+                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                     FROM documents
+                     WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
+                     ORDER BY updated_at DESC;",
+                )
+                .bind(workspace_id)
+                .bind(pk)
+                .fetch_all(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+                rows.into_iter()
+                    .map(document_from_sqlite)
+                    .collect::<Result<Vec<_>, _>>()
+            }
+            Backend::Postgres(pool) => {
+                let rows = sqlx::query(
+                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                     FROM documents
+                     WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
+                     ORDER BY updated_at DESC;",
+                )
+                .bind(workspace_id)
+                .bind(pk)
+                .fetch_all(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+                rows.into_iter()
+                    .map(document_from_postgres)
+                    .collect::<Result<Vec<_>, _>>()
+            }
+        }
+    }
+
     pub async fn fetch_document_by_id(
         &self,
         workspace_id: &str,

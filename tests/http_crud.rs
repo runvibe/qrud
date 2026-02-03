@@ -305,7 +305,12 @@ async fn header_workspace_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
+    let array = json.as_array().expect("document list");
+    assert_eq!(array.len(), 1);
+    assert_eq!(
+        array[0].get("name").and_then(|v| v.as_str()),
+        Some("Ana")
+    );
 }
 
 #[tokio::test]
@@ -331,7 +336,12 @@ async fn root_document_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("title").and_then(|v| v.as_str()), Some("Oi"));
+    let array = json.as_array().expect("document list");
+    assert_eq!(array.len(), 1);
+    assert_eq!(
+        array[0].get("title").and_then(|v| v.as_str()),
+        Some("Oi")
+    );
 }
 
 #[tokio::test]
@@ -355,7 +365,12 @@ async fn workspace_document_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("title").and_then(|v| v.as_str()), Some("Oi"));
+    let array = json.as_array().expect("document list");
+    assert_eq!(array.len(), 1);
+    assert_eq!(
+        array[0].get("title").and_then(|v| v.as_str()),
+        Some("Oi")
+    );
 }
 
 #[tokio::test]
@@ -479,7 +494,12 @@ async fn get_document_success() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
+    let array = json.as_array().expect("document list");
+    assert_eq!(array.len(), 1);
+    assert_eq!(
+        array[0].get("name").and_then(|v| v.as_str()),
+        Some("Ana")
+    );
 }
 
 #[tokio::test]
@@ -604,7 +624,12 @@ async fn allow_duplicate_pk_returns_latest() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Second"));
+    let array = json.as_array().expect("document list");
+    assert_eq!(array.len(), 2);
+    assert_eq!(
+        array[0].get("name").and_then(|v| v.as_str()),
+        Some("Second")
+    );
 }
 
 #[tokio::test]
