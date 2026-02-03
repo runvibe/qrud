@@ -20,6 +20,18 @@ CREATE TABLE IF NOT EXISTS documents (
     deleted_at BIGINT
 );
 
+CREATE TABLE IF NOT EXISTS meta_pk (
+    id SERIAL PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    pk TEXT NOT NULL,
+    total BIGINT NOT NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS meta_pk_workspace_pk_idx
+    ON meta_pk(workspace_id, pk);
+
 CREATE INDEX IF NOT EXISTS documents_workspace_pk_idx
     ON documents(workspace_id, pk);
 

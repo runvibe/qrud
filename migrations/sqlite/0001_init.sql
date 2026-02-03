@@ -21,6 +21,19 @@ CREATE TABLE IF NOT EXISTS documents (
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
 );
 
+CREATE TABLE IF NOT EXISTS meta_pk (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id TEXT NOT NULL,
+    pk TEXT NOT NULL,
+    total INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS meta_pk_workspace_pk_idx
+    ON meta_pk(workspace_id, pk);
+
 CREATE INDEX IF NOT EXISTS documents_workspace_pk_idx
     ON documents(workspace_id, pk);
 

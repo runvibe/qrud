@@ -375,6 +375,8 @@ impl Store {
             }
         }
 
+        self.increment_meta_pk(workspace_id, pk).await?;
+
         Ok(Document {
             id: id.to_string(),
             workspace_id: workspace_id.to_string(),
@@ -451,6 +453,13 @@ impl Store {
         id: &str,
         data: &serde_json::Value,
     ) -> Result<Option<Document>, String> {
+        let existing = self
+            .fetch_document_including_deleted_by_id(workspace_id, id)
+            .await?;
+        let Some(existing) = existing else {
+            return Ok(None);
+        };
+
         let now = now_millis();
         let data = serde_json::to_string(data).map_err(|err| err.to_string())?;
 
@@ -491,7 +500,11 @@ impl Store {
             return Ok(None);
         }
 
-        self.fetch_document_by_id(workspace_id, id).await
+        let updated = self.fetch_document_by_id(workspace_id, id).await?;
+        if existing.deleted_at.is_some() {
+            self.increment_meta_pk(workspace_id, &existing.pk).await?;
+        }
+        Ok(updated)
     }
 
     pub async fn fetch_document(
@@ -565,6 +578,13 @@ impl Store {
         workspace_id: &str,
         id: &str,
     ) -> Result<bool, String> {
+        let existing = self
+            .fetch_document_by_id(workspace_id, id)
+            .await?;
+        let Some(existing) = existing else {
+            return Ok(false);
+        };
+
         let now = now_millis();
         let affected = match &self.backend {
             Backend::Sqlite(pool) => {
@@ -599,7 +619,12 @@ impl Store {
             }
         };
 
-        Ok(affected > 0)
+        if affected > 0 {
+            self.decrement_meta_pk(workspace_id, &existing.pk).await?;
+            return Ok(true);
+        }
+
+        Ok(false)
     }
     pub async fn workspace_exists_by_name(&self, name: &str) -> Result<bool, String> {
         let exists = match &self.backend {
@@ -768,6 +793,78 @@ impl Store {
                 }
             }
         }
+    }
+
+    async fn increment_meta_pk(&self, workspace_id: &str, pk: &str) -> Result<(), String> {
+        let now = now_millis();
+        match &self.backend {
+            Backend::Sqlite(pool) => {
+                sqlx::query(
+                    "INSERT INTO meta_pk (workspace_id, pk, total, created_at, updated_at)
+                     VALUES (?, ?, 1, ?, ?)
+                     ON CONFLICT(workspace_id, pk)
+                     DO UPDATE SET total = total + 1, updated_at = excluded.updated_at;",
+                )
+                .bind(workspace_id)
+                .bind(pk)
+                .bind(now)
+                .bind(now)
+                .execute(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+            }
+            Backend::Postgres(pool) => {
+                sqlx::query(
+                    "INSERT INTO meta_pk (workspace_id, pk, total, created_at, updated_at)
+                     VALUES ($1, $2, 1, $3, $4)
+                     ON CONFLICT (workspace_id, pk)
+                     DO UPDATE SET total = meta_pk.total + 1, updated_at = EXCLUDED.updated_at;",
+                )
+                .bind(workspace_id)
+                .bind(pk)
+                .bind(now)
+                .bind(now)
+                .execute(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn decrement_meta_pk(&self, workspace_id: &str, pk: &str) -> Result<(), String> {
+        let now = now_millis();
+        match &self.backend {
+            Backend::Sqlite(pool) => {
+                sqlx::query(
+                    "UPDATE meta_pk
+                     SET total = CASE WHEN total > 0 THEN total - 1 ELSE 0 END,
+                         updated_at = ?
+                     WHERE workspace_id = ? AND pk = ?;",
+                )
+                .bind(now)
+                .bind(workspace_id)
+                .bind(pk)
+                .execute(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+            }
+            Backend::Postgres(pool) => {
+                sqlx::query(
+                    "UPDATE meta_pk
+                     SET total = CASE WHEN total > 0 THEN total - 1 ELSE 0 END,
+                         updated_at = $1
+                     WHERE workspace_id = $2 AND pk = $3;",
+                )
+                .bind(now)
+                .bind(workspace_id)
+                .bind(pk)
+                .execute(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+            }
+        }
+        Ok(())
     }
 }
 
