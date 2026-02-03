@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS workspaces (
     deleted_at BIGINT
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS workspaces_name_idx
+    ON workspaces(name);
+
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id),

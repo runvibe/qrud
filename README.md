@@ -32,10 +32,12 @@ curl http://localhost:3000/openapi.json
 
 ### Workspaces
 
+O nome do workspace deve ser `dash-case` e unico. Na primeira inicializacao, o workspace `default` e criado automaticamente.
+
 ```bash
 curl -X POST http://localhost:3000/workspaces \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Main","description":"Team workspace"}'
+  -d '{"name":"main","description":"Team workspace"}'
 ```
 
 ```bash
@@ -43,51 +45,51 @@ curl http://localhost:3000/workspaces
 ```
 
 ```bash
-curl http://localhost:3000/workspaces/<workspace_id>
+curl http://localhost:3000/workspaces/<workspace_name>
 ```
 
 ```bash
-curl -X PUT http://localhost:3000/workspaces/<workspace_id> \
+curl -X PUT http://localhost:3000/workspaces/<workspace_name> \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Main","description":"Updated"}'
+  -d '{"name":"main","description":"Updated"}'
 ```
 
 ```bash
-curl -X PATCH http://localhost:3000/workspaces/<workspace_id> \
+curl -X PATCH http://localhost:3000/workspaces/<workspace_name> \
   -H 'Content-Type: application/json' \
   -d '{"description":"Ops"}'
 ```
 
 ```bash
-curl -X DELETE http://localhost:3000/workspaces/<workspace_id>
+curl -X DELETE http://localhost:3000/workspaces/<workspace_name>
 ```
 
 ### Documents por workspace
 
 ```bash
-curl -X POST http://localhost:3000/workspaces/<workspace_id>/documents/users \
+curl -X POST http://localhost:3000/workspaces/<workspace_name>/documents/users \
   -H 'Content-Type: application/json' \
   -d '{"name":"Ana"}'
 ```
 
 ```bash
-curl http://localhost:3000/workspaces/<workspace_id>/documents/users
+curl http://localhost:3000/workspaces/<workspace_name>/documents/users
 ```
 
 ```bash
-curl -X PUT http://localhost:3000/workspaces/<workspace_id>/documents/users \
+curl -X PUT http://localhost:3000/workspaces/<workspace_name>/documents/users \
   -H 'Content-Type: application/json' \
   -d '{"name":"Bea"}'
 ```
 
 ```bash
-curl -X PATCH http://localhost:3000/workspaces/<workspace_id>/documents/users \
+curl -X PATCH http://localhost:3000/workspaces/<workspace_name>/documents/users \
   -H 'Content-Type: application/json' \
   -d '{"role":"admin"}'
 ```
 
 ```bash
-curl -X DELETE http://localhost:3000/workspaces/<workspace_id>/documents/users
+curl -X DELETE http://localhost:3000/workspaces/<workspace_name>/documents/users
 ```
 
 ### Documents via header
@@ -95,30 +97,30 @@ curl -X DELETE http://localhost:3000/workspaces/<workspace_id>/documents/users
 ```bash
 curl -X POST http://localhost:3000/documents/users \
   -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: <workspace_id>' \
+  -H 'x-workspace-id: <workspace_name>' \
   -d '{"name":"Ana"}'
 ```
 
 ```bash
 curl http://localhost:3000/documents/users \
-  -H 'x-workspace-id: <workspace_id>'
+  -H 'x-workspace-id: <workspace_name>'
 ```
 
 ```bash
 curl -X PUT http://localhost:3000/documents/users \
   -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: <workspace_id>' \
+  -H 'x-workspace-id: <workspace_name>' \
   -d '{"name":"Bea"}'
 ```
 
 ```bash
 curl -X PATCH http://localhost:3000/documents/users \
   -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: <workspace_id>' \
+  -H 'x-workspace-id: <workspace_name>' \
   -d '{"role":"admin"}'
 ```
 
 ```bash
 curl -X DELETE http://localhost:3000/documents/users \
-  -H 'x-workspace-id: <workspace_id>'
+  -H 'x-workspace-id: <workspace_name>'
 ```

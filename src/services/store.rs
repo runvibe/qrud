@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 use crate::models::{Document, Workspace};
 
+const DEFAULT_WORKSPACE_NAME: &str = "default";
+
 #[derive(Clone)]
 enum Backend {
     Sqlite(SqlitePool),
@@ -38,9 +40,11 @@ impl Store {
             .await
             .map_err(|err| err.to_string())?;
         migrate_sqlite(&pool).await?;
-        Ok(Self {
+        let store = Self {
             backend: Backend::Sqlite(pool),
-        })
+        };
+        store.ensure_default_workspace().await?;
+        Ok(store)
     }
 
     pub async fn open_postgres(url: &str) -> Result<Self, String> {
@@ -50,9 +54,11 @@ impl Store {
             .await
             .map_err(|err| err.to_string())?;
         migrate_postgres(&pool).await?;
-        Ok(Self {
+        let store = Self {
             backend: Backend::Postgres(pool),
-        })
+        };
+        store.ensure_default_workspace().await?;
+        Ok(store)
     }
 
     pub async fn create_workspace(
@@ -60,6 +66,9 @@ impl Store {
         name: &str,
         description: Option<&str>,
     ) -> Result<Workspace, String> {
+        if self.workspace_exists_by_name(name).await? {
+            return Err("Workspace already exists".to_string());
+        }
         let id = new_uuid();
         let now = now_millis();
         match &self.backend {
@@ -132,15 +141,15 @@ impl Store {
         }
     }
 
-    pub async fn fetch_workspace(&self, id: &str) -> Result<Option<Workspace>, String> {
+    pub async fn fetch_workspace_by_name(&self, name: &str) -> Result<Option<Workspace>, String> {
         match &self.backend {
             Backend::Sqlite(pool) => {
                 let row = sqlx::query(
                     "SELECT id, name, description, created_at, updated_at, deleted_at
                      FROM workspaces
-                     WHERE id = ? AND deleted_at IS NULL;",
+                     WHERE name = ? AND deleted_at IS NULL;",
                 )
-                .bind(id)
+                .bind(name)
                 .fetch_optional(pool)
                 .await
                 .map_err(|err| err.to_string())?;
@@ -153,9 +162,9 @@ impl Store {
                 let row = sqlx::query(
                     "SELECT id, name, description, created_at, updated_at, deleted_at
                      FROM workspaces
-                     WHERE id = $1 AND deleted_at IS NULL;",
+                     WHERE name = $1 AND deleted_at IS NULL;",
                 )
-                .bind(id)
+                .bind(name)
                 .fetch_optional(pool)
                 .await
                 .map_err(|err| err.to_string())?;
@@ -169,22 +178,25 @@ impl Store {
 
     pub async fn update_workspace(
         &self,
-        id: &str,
+        current_name: &str,
         name: &str,
         description: Option<&str>,
     ) -> Result<Option<Workspace>, String> {
+        if current_name != name && self.workspace_exists_by_name(name).await? {
+            return Err("Workspace already exists".to_string());
+        }
         let now = now_millis();
         let affected = match &self.backend {
             Backend::Sqlite(pool) => {
                 sqlx::query(
                     "UPDATE workspaces
                      SET name = ?, description = ?, updated_at = ?
-                     WHERE id = ? AND deleted_at IS NULL;",
+                     WHERE name = ? AND deleted_at IS NULL;",
                 )
                 .bind(name)
                 .bind(description)
                 .bind(now)
-                .bind(id)
+                .bind(current_name)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -194,12 +206,12 @@ impl Store {
                 sqlx::query(
                     "UPDATE workspaces
                      SET name = $1, description = $2, updated_at = $3
-                     WHERE id = $4 AND deleted_at IS NULL;",
+                     WHERE name = $4 AND deleted_at IS NULL;",
                 )
                 .bind(name)
                 .bind(description)
                 .bind(now)
-                .bind(id)
+                .bind(current_name)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -211,21 +223,21 @@ impl Store {
             return Ok(None);
         }
 
-        self.fetch_workspace(id).await
+        self.fetch_workspace_by_name(name).await
     }
 
-    pub async fn delete_workspace(&self, id: &str) -> Result<bool, String> {
+    pub async fn delete_workspace(&self, name: &str) -> Result<bool, String> {
         let now = now_millis();
         let affected = match &self.backend {
             Backend::Sqlite(pool) => {
                 sqlx::query(
                     "UPDATE workspaces
                      SET deleted_at = ?, updated_at = ?
-                     WHERE id = ? AND deleted_at IS NULL;",
+                     WHERE name = ? AND deleted_at IS NULL;",
                 )
                 .bind(now)
                 .bind(now)
-                .bind(id)
+                .bind(name)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -235,11 +247,11 @@ impl Store {
                 sqlx::query(
                     "UPDATE workspaces
                      SET deleted_at = $1, updated_at = $2
-                     WHERE id = $3 AND deleted_at IS NULL;",
+                     WHERE name = $3 AND deleted_at IS NULL;",
                 )
                 .bind(now)
                 .bind(now)
-                .bind(id)
+                .bind(name)
                 .execute(pool)
                 .await
                 .map_err(|err| err.to_string())?
@@ -428,19 +440,19 @@ impl Store {
         Ok(affected > 0)
     }
 
-    pub async fn workspace_exists(&self, id: &str) -> Result<bool, String> {
+    pub async fn workspace_exists_by_name(&self, name: &str) -> Result<bool, String> {
         let exists = match &self.backend {
             Backend::Sqlite(pool) => {
-                sqlx::query("SELECT 1 FROM workspaces WHERE id = ? AND deleted_at IS NULL;")
-                    .bind(id)
+                sqlx::query("SELECT 1 FROM workspaces WHERE name = ?;")
+                    .bind(name)
                     .fetch_optional(pool)
                     .await
                     .map_err(|err| err.to_string())?
                     .is_some()
             }
             Backend::Postgres(pool) => {
-                sqlx::query("SELECT 1 FROM workspaces WHERE id = $1 AND deleted_at IS NULL;")
-                    .bind(id)
+                sqlx::query("SELECT 1 FROM workspaces WHERE name = $1;")
+                    .bind(name)
                     .fetch_optional(pool)
                     .await
                     .map_err(|err| err.to_string())?
@@ -448,6 +460,29 @@ impl Store {
             }
         };
         Ok(exists)
+    }
+
+    async fn ensure_default_workspace(&self) -> Result<(), String> {
+        let count = match &self.backend {
+            Backend::Sqlite(pool) => {
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM workspaces;")
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|err| err.to_string())?
+            }
+            Backend::Postgres(pool) => {
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM workspaces;")
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|err| err.to_string())?
+            }
+        };
+
+        if count == 0 {
+            self.create_workspace(DEFAULT_WORKSPACE_NAME, None).await?;
+        }
+
+        Ok(())
     }
 
     async fn fetch_document_including_deleted(
