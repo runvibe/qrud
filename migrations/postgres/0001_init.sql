@@ -22,3 +22,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS documents_workspace_pk_idx
 
 CREATE INDEX IF NOT EXISTS documents_workspace_idx
     ON documents(workspace_id);
+
+CREATE INDEX IF NOT EXISTS documents_workspace_name_idx
+    ON documents(workspace_id, (data::jsonb->>'name'));
+
+CREATE INDEX IF NOT EXISTS documents_workspace_title_idx
+    ON documents(workspace_id, (data::jsonb->>'title'));
+
+CREATE INDEX IF NOT EXISTS documents_workspace_label_idx
+    ON documents(workspace_id, (data::jsonb->>'label'));
+
+CREATE INDEX IF NOT EXISTS documents_workspace_description_idx
+    ON documents(workspace_id, (data::jsonb->>'description'));
