@@ -37,3 +37,6 @@ CREATE INDEX IF NOT EXISTS documents_workspace_description_idx
 
 CREATE INDEX IF NOT EXISTS documents_workspace_description_idx
     ON documents(workspace_id, (data::jsonb->>'category'));
+
+CREATE INDEX IF NOT EXISTS documents_workspace_description_idx
+    ON documents(workspace_id, (data::jsonb->>'reference'));
