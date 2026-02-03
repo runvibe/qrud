@@ -1,17 +1,25 @@
 # qrud
 
-Servidor HTTP de mock com semantica CRUD. Os dados sao armazenados em SQLite.
+Servidor HTTP de mock com semantica CRUD. Os dados sao armazenados em SQLite ou Postgres.
 
 ## Como rodar
 
+SQLite em memoria (padrao):
+
 ```bash
-cargo run -- --port 3000 --db :memory:
+cargo run -- --port 3000 --sqlite
 ```
 
-Para persistir em arquivo:
+SQLite em arquivo:
 
 ```bash
-cargo run -- --port 3000 --db ./qrud.db
+cargo run -- --port 3000 --sqlite ./qrud.db
+```
+
+Postgres:
+
+```bash
+cargo run -- --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
 ```
 
 ## OpenAPI
@@ -22,58 +30,95 @@ curl http://localhost:3000/openapi.json
 
 ## Rotas
 
-### Criar
+### Workspaces
 
 ```bash
-curl -X POST http://localhost:3000/users \
+curl -X POST http://localhost:3000/workspaces \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Ana","description":"Admin"}'
+  -d '{"name":"Main","description":"Team workspace"}'
 ```
 
-Retorno: `201` com o objeto criado (id sempre auto-incremental).
-
-### Listar com filtros e paginacao
-
 ```bash
-curl "http://localhost:3000/users?term=car&filter=name&filter=description&filter=tag&limit=10&offset=20"
+curl http://localhost:3000/workspaces
 ```
 
-- `term` e case-insensitive.
-- `filter` pode repetir para indicar quais campos buscar.
-- Se `filter` nao existir, busca em `name`, `title`, `label`, `description`, `category`.
-- `limit` e `offset` paginam o resultado.
-
-### Obter item
-
 ```bash
-curl http://localhost:3000/users/1
+curl http://localhost:3000/workspaces/<workspace_id>
 ```
 
-### Atualizar (PUT)
-
 ```bash
-curl -X PUT http://localhost:3000/users/1 \
+curl -X PUT http://localhost:3000/workspaces/<workspace_id> \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Ana","description":"Admin"}'
+  -d '{"name":"Main","description":"Updated"}'
 ```
 
-Retorno: `200` se existe, `201` se criou.
-
-### Atualizar parcialmente (PATCH)
-
 ```bash
-curl -X PATCH http://localhost:3000/users/1 \
+curl -X PATCH http://localhost:3000/workspaces/<workspace_id> \
   -H 'Content-Type: application/json' \
-  -d '{"description":"Admin senior"}'
+  -d '{"description":"Ops"}'
 ```
-
-Merge superficial de objetos. `id` no payload e ignorado.
-
-### Remover
 
 ```bash
-curl -X DELETE http://localhost:3000/users/1
+curl -X DELETE http://localhost:3000/workspaces/<workspace_id>
 ```
 
-Retorno: `204`.
-# qrud
+### Documents por workspace
+
+```bash
+curl -X POST http://localhost:3000/workspaces/<workspace_id>/documents/users \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Ana"}'
+```
+
+```bash
+curl http://localhost:3000/workspaces/<workspace_id>/documents/users
+```
+
+```bash
+curl -X PUT http://localhost:3000/workspaces/<workspace_id>/documents/users \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Bea"}'
+```
+
+```bash
+curl -X PATCH http://localhost:3000/workspaces/<workspace_id>/documents/users \
+  -H 'Content-Type: application/json' \
+  -d '{"role":"admin"}'
+```
+
+```bash
+curl -X DELETE http://localhost:3000/workspaces/<workspace_id>/documents/users
+```
+
+### Documents via header
+
+```bash
+curl -X POST http://localhost:3000/documents/users \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: <workspace_id>' \
+  -d '{"name":"Ana"}'
+```
+
+```bash
+curl http://localhost:3000/documents/users \
+  -H 'x-workspace-id: <workspace_id>'
+```
+
+```bash
+curl -X PUT http://localhost:3000/documents/users \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: <workspace_id>' \
+  -d '{"name":"Bea"}'
+```
+
+```bash
+curl -X PATCH http://localhost:3000/documents/users \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: <workspace_id>' \
+  -d '{"role":"admin"}'
+```
+
+```bash
+curl -X DELETE http://localhost:3000/documents/users \
+  -H 'x-workspace-id: <workspace_id>'
+```
