@@ -556,6 +556,37 @@ impl Store {
         }
     }
 
+    pub async fn fetch_meta_pk_total(
+        &self,
+        workspace_id: &str,
+        pk: &str,
+    ) -> Result<Option<i64>, String> {
+        match &self.backend {
+            Backend::Sqlite(pool) => {
+                let total = sqlx::query_scalar::<_, i64>(
+                    "SELECT total FROM meta_pk WHERE workspace_id = ? AND pk = ?;",
+                )
+                .bind(workspace_id)
+                .bind(pk)
+                .fetch_optional(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+                Ok(total)
+            }
+            Backend::Postgres(pool) => {
+                let total = sqlx::query_scalar::<_, i64>(
+                    "SELECT total FROM meta_pk WHERE workspace_id = $1 AND pk = $2;",
+                )
+                .bind(workspace_id)
+                .bind(pk)
+                .fetch_optional(pool)
+                .await
+                .map_err(|err| err.to_string())?;
+                Ok(total)
+            }
+        }
+    }
+
     pub async fn fetch_document_by_id(
         &self,
         workspace_id: &str,

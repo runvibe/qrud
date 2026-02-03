@@ -536,10 +536,21 @@ async fn document_get(state: AppState, workspace: String, pk: String) -> Respons
         .fetch_documents_by_pk(&workspace_data.id, &selector.pk)
         .await
     {
-        Ok(docs) if docs.is_empty() => json_error(StatusCode::NOT_FOUND, "Document not found"),
         Ok(docs) => {
-            let output = docs.into_iter().map(document_to_output).collect::<Vec<_>>();
-            (StatusCode::OK, Json(output)).into_response()
+            let total = match state
+                .store
+                .fetch_meta_pk_total(&workspace_data.id, &selector.pk)
+                .await
+            {
+                Ok(total) => total.unwrap_or(0),
+                Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
+            };
+            let items = docs.into_iter().map(document_to_output).collect::<Vec<_>>();
+            let payload = json!({
+                "items": items,
+                "total": total
+            });
+            (StatusCode::OK, Json(payload)).into_response()
         }
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }

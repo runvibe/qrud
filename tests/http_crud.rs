@@ -278,8 +278,9 @@ async fn delete_document_then_get_returns_404() {
         .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
-    let status = request_status(&app, get).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(0));
 }
 
 #[tokio::test]
@@ -305,8 +306,11 @@ async fn header_workspace_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    let array = json.as_array().expect("document list");
-    assert_eq!(array.len(), 1);
+    let array = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Ana")
@@ -336,8 +340,11 @@ async fn root_document_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    let array = json.as_array().expect("document list");
-    assert_eq!(array.len(), 1);
+    let array = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         array[0].get("title").and_then(|v| v.as_str()),
         Some("Oi")
@@ -365,8 +372,11 @@ async fn workspace_document_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    let array = json.as_array().expect("document list");
-    assert_eq!(array.len(), 1);
+    let array = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         array[0].get("title").and_then(|v| v.as_str()),
         Some("Oi")
@@ -494,8 +504,11 @@ async fn get_document_success() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    let array = json.as_array().expect("document list");
-    assert_eq!(array.len(), 1);
+    let array = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Ana")
@@ -624,8 +637,11 @@ async fn allow_duplicate_pk_returns_latest() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    let array = json.as_array().expect("document list");
-    assert_eq!(array.len(), 2);
+    let array = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(2));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Second")
