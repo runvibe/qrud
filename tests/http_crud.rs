@@ -1,5 +1,5 @@
 use axum::body::{to_bytes, Body};
-use axum::http::{Request, StatusCode};
+use axum::http::{HeaderValue, Request, StatusCode};
 use axum::Router;
 use serde_json::Value as JsonValue;
 use tower::ServiceExt;
@@ -361,4 +361,121 @@ async fn document_id_is_uuid_v7() {
     let id = json.get("id").and_then(|v| v.as_str()).expect("id");
     let uuid = Uuid::parse_str(id).expect("uuid");
     assert_eq!(uuid.get_version(), Some(uuid::Version::SortRand));
+}
+
+#[tokio::test]
+async fn get_document_success() {
+    let app = build_app().await;
+    let workspace_id = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri(format!("/workspaces/{workspace_id}/documents/users"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    request_json(&app, create).await;
+
+    let get = Request::builder()
+        .method("GET")
+        .uri(format!("/workspaces/{workspace_id}/documents/users"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
+        Some("Ana")
+    );
+}
+
+#[tokio::test]
+async fn document_post_conflict_returns_409() {
+    let app = build_app().await;
+    let workspace_id = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri(format!("/workspaces/{workspace_id}/documents/users"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let duplicate = Request::builder()
+        .method("POST")
+        .uri(format!("/workspaces/{workspace_id}/documents/users"))
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, duplicate).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn header_document_put_patch_delete() {
+    let app = build_app().await;
+    let workspace_id = create_workspace(&app).await;
+
+    let put = Request::builder()
+        .method("PUT")
+        .uri("/documents/users")
+        .header("x-workspace-id", &workspace_id)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, put).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let id = json.get("id").and_then(|v| v.as_str()).unwrap().to_string();
+
+    let patch = Request::builder()
+        .method("PATCH")
+        .uri("/documents/users")
+        .header("x-workspace-id", &workspace_id)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"role":"admin"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, patch).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("id").and_then(|v| v.as_str()), Some(id.as_str()));
+
+    let delete = Request::builder()
+        .method("DELETE")
+        .uri("/documents/users")
+        .header("x-workspace-id", &workspace_id)
+        .body(Body::empty())
+        .unwrap();
+    let status = request_status(&app, delete).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn header_workspace_invalid_value_returns_400() {
+    let app = build_app().await;
+
+    let mut builder = Request::builder();
+    builder = builder.method("GET").uri("/documents/users");
+    let request = builder
+        .header(
+            "x-workspace-id",
+            HeaderValue::from_bytes(b"\xFF").unwrap(),
+        )
+        .body(Body::empty())
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn openapi_route_available() {
+    let app = build_app().await;
+    let request = Request::builder()
+        .method("GET")
+        .uri("/openapi.json")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, request).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(json.get("openapi").is_some());
 }
