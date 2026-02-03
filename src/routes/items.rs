@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -16,7 +16,7 @@ use crate::services::AppState;
     )
 )]
 pub(crate) async fn create_workspace(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Json(payload): Json<WorkspaceInput>,
 ) -> Response {
     let name = payload.name.trim();
@@ -46,7 +46,7 @@ pub(crate) async fn create_workspace(
         (status = 200, body = [Workspace], description = "Lista de workspaces")
     )
 )]
-pub(crate) async fn list_workspaces(State(state): State<AppState>) -> Response {
+pub(crate) async fn list_workspaces(Extension(state): Extension<AppState>) -> Response {
     match state.store.list_workspaces().await {
         Ok(workspaces) => (StatusCode::OK, Json(workspaces)).into_response(),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -65,7 +65,7 @@ pub(crate) async fn list_workspaces(State(state): State<AppState>) -> Response {
     )
 )]
 pub(crate) async fn get_workspace(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(workspace): Path<String>,
 ) -> Response {
     if !is_dash_case(workspace.trim()) {
@@ -91,7 +91,7 @@ pub(crate) async fn get_workspace(
     )
 )]
 pub(crate) async fn put_workspace(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(workspace): Path<String>,
     Json(payload): Json<WorkspaceInput>,
 ) -> Response {
@@ -132,7 +132,7 @@ pub(crate) async fn put_workspace(
     )
 )]
 pub(crate) async fn patch_workspace(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(workspace): Path<String>,
     Json(payload): Json<WorkspacePatch>,
 ) -> Response {
@@ -196,7 +196,7 @@ pub(crate) async fn patch_workspace(
     )
 )]
 pub(crate) async fn delete_workspace(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(workspace): Path<String>,
 ) -> Response {
     if !is_dash_case(workspace.trim()) {
@@ -224,7 +224,7 @@ pub(crate) async fn delete_workspace(
     )
 )]
 pub(crate) async fn create_document(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path((workspace, pk)): Path<(String, String)>,
     Json(payload): Json<JsonValue>,
 ) -> Response {
@@ -246,7 +246,7 @@ pub(crate) async fn create_document(
     )
 )]
 pub(crate) async fn create_document_with_header(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(pk): Path<String>,
     headers: HeaderMap,
     Json(payload): Json<JsonValue>,
@@ -271,7 +271,7 @@ pub(crate) async fn create_document_with_header(
     )
 )]
 pub(crate) async fn get_document(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path((workspace, pk)): Path<(String, String)>,
 ) -> Response {
     document_get(state, workspace, pk).await
@@ -290,7 +290,7 @@ pub(crate) async fn get_document(
     )
 )]
 pub(crate) async fn get_document_with_header(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(pk): Path<String>,
     headers: HeaderMap,
 ) -> Response {
@@ -316,7 +316,7 @@ pub(crate) async fn get_document_with_header(
     )
 )]
 pub(crate) async fn put_document(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path((workspace, pk)): Path<(String, String)>,
     Json(payload): Json<JsonValue>,
 ) -> Response {
@@ -338,7 +338,7 @@ pub(crate) async fn put_document(
     )
 )]
 pub(crate) async fn put_document_with_header(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(pk): Path<String>,
     headers: HeaderMap,
     Json(payload): Json<JsonValue>,
@@ -364,7 +364,7 @@ pub(crate) async fn put_document_with_header(
     )
 )]
 pub(crate) async fn patch_document(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path((workspace, pk)): Path<(String, String)>,
     Json(payload): Json<JsonValue>,
 ) -> Response {
@@ -385,7 +385,7 @@ pub(crate) async fn patch_document(
     )
 )]
 pub(crate) async fn patch_document_with_header(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(pk): Path<String>,
     headers: HeaderMap,
     Json(payload): Json<JsonValue>,
@@ -410,7 +410,7 @@ pub(crate) async fn patch_document_with_header(
     )
 )]
 pub(crate) async fn delete_document(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path((workspace, pk)): Path<(String, String)>,
 ) -> Response {
     document_delete(state, workspace, pk).await
@@ -429,7 +429,7 @@ pub(crate) async fn delete_document(
     )
 )]
 pub(crate) async fn delete_document_with_header(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     Path(pk): Path<String>,
     headers: HeaderMap,
 ) -> Response {

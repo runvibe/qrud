@@ -3,7 +3,7 @@ mod items;
 use std::sync::Arc;
 
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Extension, Json, Router};
 use utoipa::openapi::{ContactBuilder, InfoBuilder, LicenseBuilder, OpenApiBuilder, Paths};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -32,7 +32,6 @@ pub fn router(state: AppState) -> Router {
             items::patch_document_with_header,
             items::delete_document_with_header
         ))
-        .with_state(state)
         .split_for_parts();
 
     let api_json = serde_json::to_value(&api).expect("failed to serialize openapi");
@@ -41,12 +40,32 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .merge(router)
         .route(
+            "/w",
+            get(items::list_workspaces).post(items::create_workspace),
+        )
+        .route(
+            "/w/{workspace}",
+            get(items::get_workspace)
+                .put(items::put_workspace)
+                .patch(items::patch_workspace)
+                .delete(items::delete_workspace),
+        )
+        .route(
+            "/d/{*pk}",
+            get(items::get_document_with_header)
+                .post(items::create_document_with_header)
+                .put(items::put_document_with_header)
+                .patch(items::patch_document_with_header)
+                .delete(items::delete_document_with_header),
+        )
+        .route(
             "/openapi.json",
             get({
                 let api_json = api_json.clone();
                 move || async move { Json(api_json.as_ref().clone()) }
             }),
         )
+        .layer(Extension(state))
 }
 
 fn build_openapi() -> utoipa::openapi::OpenApi {

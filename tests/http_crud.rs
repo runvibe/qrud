@@ -490,3 +490,55 @@ async fn openapi_route_available() {
     assert_eq!(status, StatusCode::OK);
     assert!(json.get("openapi").is_some());
 }
+
+#[tokio::test]
+async fn short_routes_work() {
+    let app = build_app().await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/w")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"alpha"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let list = Request::builder()
+        .method("GET")
+        .uri("/w")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, list).await;
+    assert_eq!(status, StatusCode::OK);
+    let names = json
+        .as_array()
+        .expect("workspace list")
+        .iter()
+        .filter_map(|item| item.get("name").and_then(|v| v.as_str()))
+        .collect::<Vec<_>>();
+    assert!(names.contains(&"alpha"));
+
+    let create_doc = Request::builder()
+        .method("POST")
+        .uri("/d/users")
+        .header("x-workspace-id", "alpha")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, create_doc).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let get_doc = Request::builder()
+        .method("GET")
+        .uri("/d/users")
+        .header("x-workspace-id", "alpha")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get_doc).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
+        Some("Ana")
+    );
+}
