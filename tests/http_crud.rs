@@ -365,6 +365,23 @@ async fn header_workspace_missing_returns_400() {
 }
 
 #[tokio::test]
+async fn reserved_pk_returns_400() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/documents")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+}
+
+#[tokio::test]
 async fn document_requires_existing_workspace() {
     let app = build_app().await;
     let fake_name = "missing-workspace";

@@ -370,7 +370,10 @@ async fn document_create(
     pk: String,
     mut payload: JsonValue,
 ) -> Response {
-    let pk = normalize_pk(&pk);
+    let pk = match validate_pk(&pk) {
+        Ok(pk) => pk,
+        Err(resp) => return resp,
+    };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -394,7 +397,10 @@ async fn document_create(
 }
 
 async fn document_get(state: AppState, workspace: String, pk: String) -> Response {
-    let pk = normalize_pk(&pk);
+    let pk = match validate_pk(&pk) {
+        Ok(pk) => pk,
+        Err(resp) => return resp,
+    };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -413,7 +419,10 @@ async fn document_put(
     pk: String,
     mut payload: JsonValue,
 ) -> Response {
-    let pk = normalize_pk(&pk);
+    let pk = match validate_pk(&pk) {
+        Ok(pk) => pk,
+        Err(resp) => return resp,
+    };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -446,7 +455,10 @@ async fn document_patch(
     pk: String,
     mut payload: JsonValue,
 ) -> Response {
-    let pk = normalize_pk(&pk);
+    let pk = match validate_pk(&pk) {
+        Ok(pk) => pk,
+        Err(resp) => return resp,
+    };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -489,7 +501,10 @@ async fn document_patch(
 }
 
 async fn document_delete(state: AppState, workspace: String, pk: String) -> Response {
-    let pk = normalize_pk(&pk);
+    let pk = match validate_pk(&pk) {
+        Ok(pk) => pk,
+        Err(resp) => return resp,
+    };
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -547,6 +562,26 @@ fn normalize_pk(pk: &str) -> String {
     } else {
         format!("/{trimmed}")
     }
+}
+
+fn validate_pk(pk: &str) -> Result<String, Response> {
+    let normalized = normalize_pk(pk);
+    if is_reserved_pk(&normalized) {
+        return Err(json_error(StatusCode::BAD_REQUEST, "PK is reserved"));
+    }
+    Ok(normalized)
+}
+
+fn is_reserved_pk(pk: &str) -> bool {
+    let trimmed = pk.trim_end_matches('/');
+    let value = trimmed.strip_prefix('/').unwrap_or(trimmed);
+    if value.is_empty() || value.contains('/') {
+        return false;
+    }
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "health" | "heath" | "info" | "workspaces" | "documents"
+    )
 }
 
 fn is_dash_case(value: &str) -> bool {
