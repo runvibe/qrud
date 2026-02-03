@@ -29,6 +29,7 @@ pub struct Workspace {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceOutput {
     pub id: String,
     pub name: String,
@@ -56,11 +57,11 @@ pub struct Document {
 pub struct DocumentOutput {
     #[serde(rename = "$id")]
     pub id: String,
-    #[serde(rename = "$created_at")]
+    #[serde(rename = "$createdAt")]
     pub created_at: i64,
-    #[serde(rename = "$updated_at")]
+    #[serde(rename = "$updatedAt")]
     pub updated_at: i64,
-    #[serde(rename = "$deleted_at", default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$deletedAt", default, skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<i64>,
     #[serde(flatten)]
     #[schema(value_type = Object)]

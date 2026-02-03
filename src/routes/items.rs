@@ -829,16 +829,16 @@ fn document_to_output(document: Document) -> JsonValue {
     let mut output = serde_json::Map::new();
     output.insert("$id".to_string(), JsonValue::String(document.id));
     output.insert(
-        "$created_at".to_string(),
+        "$createdAt".to_string(),
         JsonValue::String(format_millis_iso(document.created_at)),
     );
     output.insert(
-        "$updated_at".to_string(),
+        "$updatedAt".to_string(),
         JsonValue::String(format_millis_iso(document.updated_at)),
     );
     if let Some(deleted_at) = document.deleted_at {
         output.insert(
-            "$deleted_at".to_string(),
+            "$deletedAt".to_string(),
             JsonValue::String(format_millis_iso(deleted_at)),
         );
     }
