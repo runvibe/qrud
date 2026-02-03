@@ -661,6 +661,51 @@ async fn allow_duplicate_pk_returns_latest() {
 }
 
 #[tokio::test]
+async fn pk_list_term_filters_results() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Philippe Assis"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Other"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users?term=assis")
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(2));
+    let items = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(items.len(), 1);
+    assert_eq!(
+        items[0].get("name").and_then(|v| v.as_str()),
+        Some("Philippe Assis")
+    );
+}
+
+#[tokio::test]
 async fn header_document_put_patch_delete() {
     let app = build_app().await;
     let workspace_name = create_workspace(&app).await;

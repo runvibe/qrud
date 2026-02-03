@@ -541,10 +541,15 @@ async fn document_get(
 
     let offset = params.offset.unwrap_or(0).max(0);
     let limit = params.limit.filter(|value| *value > 0);
+    let term = params
+        .term
+        .as_ref()
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty());
 
     match state
         .store
-        .fetch_documents_by_pk(&workspace_data.id, &selector.pk, limit, offset)
+        .fetch_documents_by_pk(&workspace_data.id, &selector.pk, term.as_deref(), limit, offset)
         .await
     {
         Ok(docs) => {
@@ -783,6 +788,7 @@ struct DocumentSelector {
 pub(crate) struct ListParams {
     limit: Option<i64>,
     offset: Option<i64>,
+    term: Option<String>,
 }
 
 fn parse_document_selector(raw: &str) -> Result<DocumentSelector, Response> {
