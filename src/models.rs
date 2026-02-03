@@ -41,6 +41,21 @@ pub struct Document {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DocumentOutput {
+    #[serde(rename = "$id")]
+    pub id: String,
+    #[serde(rename = "$created_at")]
+    pub created_at: i64,
+    #[serde(rename = "$updated_at")]
+    pub updated_at: i64,
+    #[serde(rename = "$deleted_at", default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<i64>,
+    #[serde(flatten)]
+    #[schema(value_type = Object)]
+    pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(transparent)]
 #[schema(value_type = Value)]
 pub struct AnyJson(pub serde_json::Value);

@@ -4,7 +4,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::{json, Value as JsonValue};
 
-use crate::models::{AnyJson, Document, Workspace, WorkspaceInput, WorkspacePatch};
+use crate::models::{AnyJson, Document, DocumentOutput, Workspace, WorkspaceInput, WorkspacePatch};
 use crate::services::{AppState, DEFAULT_WORKSPACE_NAME};
 
 #[utoipa::path(
@@ -218,7 +218,7 @@ pub(crate) async fn delete_workspace(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 201, body = Document, description = "Documento criado"),
+        (status = 201, body = DocumentOutput, description = "Documento criado"),
         (status = 404, description = "Workspace nao encontrado"),
         (status = 409, description = "Documento ja existe")
     )
@@ -239,7 +239,7 @@ pub(crate) async fn create_document_workspace(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = Document, description = "Documento encontrado"),
+        (status = 200, body = DocumentOutput, description = "Documento encontrado"),
         (status = 404, description = "Nao encontrado")
     )
 )]
@@ -259,8 +259,8 @@ pub(crate) async fn get_document_workspace(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = Document, description = "Documento atualizado"),
-        (status = 201, body = Document, description = "Documento criado"),
+        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
+        (status = 201, body = DocumentOutput, description = "Documento criado"),
         (status = 404, description = "Workspace nao encontrado")
     )
 )]
@@ -281,7 +281,7 @@ pub(crate) async fn put_document_workspace(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = Document, description = "Documento atualizado"),
+        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
         (status = 404, description = "Nao encontrado")
     )
 )]
@@ -320,7 +320,7 @@ pub(crate) async fn delete_document_workspace(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 201, body = Document, description = "Documento criado"),
+        (status = 201, body = DocumentOutput, description = "Documento criado"),
         (status = 400, description = "Workspace nao informado"),
         (status = 404, description = "Workspace nao encontrado"),
         (status = 409, description = "Documento ja existe")
@@ -346,7 +346,7 @@ pub(crate) async fn create_document_root(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = Document, description = "Documento encontrado"),
+        (status = 200, body = DocumentOutput, description = "Documento encontrado"),
         (status = 400, description = "Workspace nao informado"),
         (status = 404, description = "Nao encontrado")
     )
@@ -371,8 +371,8 @@ pub(crate) async fn get_document_root(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = Document, description = "Documento atualizado"),
-        (status = 201, body = Document, description = "Documento criado"),
+        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
+        (status = 201, body = DocumentOutput, description = "Documento criado"),
         (status = 400, description = "Workspace nao informado"),
         (status = 404, description = "Workspace nao encontrado")
     )
@@ -398,7 +398,7 @@ pub(crate) async fn put_document_root(
         ("pk" = String, Path, description = "Path key do documento")
     ),
     responses(
-        (status = 200, body = Document, description = "Documento atualizado"),
+        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
         (status = 400, description = "Workspace nao informado"),
         (status = 404, description = "Nao encontrado")
     )
@@ -489,7 +489,9 @@ async fn document_create(
         .create_document(&workspace_data.id, &pk, &payload)
         .await
     {
-        Ok(document) => (StatusCode::CREATED, Json(document)).into_response(),
+        Ok(document) => {
+            (StatusCode::CREATED, Json(document_to_output(document))).into_response()
+        }
         Err(message) if message == "Document already exists" => {
             json_error(StatusCode::CONFLICT, &message)
         }
@@ -508,7 +510,7 @@ async fn document_get(state: AppState, workspace: String, pk: String) -> Respons
     };
 
     match state.store.fetch_document(&workspace_data.id, &pk).await {
-        Ok(Some(doc)) => (StatusCode::OK, Json(doc)).into_response(),
+        Ok(Some(doc)) => (StatusCode::OK, Json(document_to_output(doc))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
@@ -544,7 +546,7 @@ async fn document_put(
             } else {
                 StatusCode::OK
             };
-            (status, Json(document)).into_response()
+            (status, Json(document_to_output(document))).into_response()
         }
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
@@ -595,7 +597,7 @@ async fn document_patch(
         .update_document_data(&workspace_data.id, &pk, &existing.data)
         .await
     {
-        Ok(Some(document)) => (StatusCode::OK, Json(document)).into_response(),
+        Ok(Some(document)) => (StatusCode::OK, Json(document_to_output(document))).into_response(),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
@@ -691,6 +693,44 @@ fn is_reserved_pk(pk: &str) -> bool {
         value.to_ascii_lowercase().as_str(),
         "health" | "heath" | "info" | "workspaces" | "documents"
     )
+}
+
+fn document_to_output(document: Document) -> JsonValue {
+    let mut output = serde_json::Map::new();
+    output.insert("$id".to_string(), JsonValue::String(document.id));
+    output.insert(
+        "$created_at".to_string(),
+        JsonValue::Number(document.created_at.into()),
+    );
+    output.insert(
+        "$updated_at".to_string(),
+        JsonValue::Number(document.updated_at.into()),
+    );
+    if let Some(deleted_at) = document.deleted_at {
+        output.insert(
+            "$deleted_at".to_string(),
+            JsonValue::Number(deleted_at.into()),
+        );
+    }
+
+    match document.data {
+        JsonValue::Object(map) => {
+            for (key, value) in map {
+                if matches!(
+                    key.as_str(),
+                    "id" | "workspace_id" | "pk" | "created_at" | "updated_at" | "deleted_at"
+                ) {
+                    continue;
+                }
+                output.insert(key, value);
+            }
+        }
+        value => {
+            output.insert("value".to_string(), value);
+        }
+    }
+
+    JsonValue::Object(output)
 }
 
 fn is_dash_case(value: &str) -> bool {

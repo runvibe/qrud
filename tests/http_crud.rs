@@ -178,13 +178,10 @@ async fn post_document_ignores_payload_id() {
 
     let (status, json) = request_json(&app, request).await;
     assert_eq!(status, StatusCode::CREATED);
-    let id = json.get("id").and_then(|v| v.as_str()).expect("id");
+    let id = json.get("$id").and_then(|v| v.as_str()).expect("id");
     assert_ne!(id, "should-ignore");
     assert!(Uuid::parse_str(id).is_ok());
-    assert!(json
-        .get("data")
-        .and_then(|v| v.get("id"))
-        .is_none());
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -202,7 +199,7 @@ async fn put_document_creates_and_updates() {
 
     let (status, json) = request_json(&app, request).await;
     assert_eq!(status, StatusCode::CREATED);
-    let first_id = json.get("id").and_then(|v| v.as_str()).unwrap();
+    let first_id = json.get("$id").and_then(|v| v.as_str()).unwrap();
 
     let update = Request::builder()
         .method("PUT")
@@ -214,12 +211,9 @@ async fn put_document_creates_and_updates() {
 
     let (status, json) = request_json(&app, update).await;
     assert_eq!(status, StatusCode::OK);
-    let updated_id = json.get("id").and_then(|v| v.as_str()).unwrap();
+    let updated_id = json.get("$id").and_then(|v| v.as_str()).unwrap();
     assert_eq!(first_id, updated_id);
-    assert_eq!(
-        json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
-        Some("Carlos")
-    );
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Carlos"));
 }
 
 #[tokio::test]
@@ -235,7 +229,7 @@ async fn patch_document_merges_fields() {
         .body(Body::from(r#"{"name":"Car","description":"Base"}"#))
         .unwrap();
     let (_, created) = request_json(&app, create).await;
-    let id = created.get("id").and_then(|v| v.as_str()).unwrap().to_string();
+    let id = created.get("$id").and_then(|v| v.as_str()).unwrap().to_string();
 
     let patch = Request::builder()
         .method("PATCH")
@@ -246,19 +240,12 @@ async fn patch_document_merges_fields() {
         .unwrap();
     let (status, json) = request_json(&app, patch).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("id").and_then(|v| v.as_str()), Some(id.as_str()));
+    assert_eq!(json.get("$id").and_then(|v| v.as_str()), Some(id.as_str()));
     assert_eq!(
-        json.get("data")
-            .and_then(|v| v.get("description"))
-            .and_then(|v| v.as_str()),
+        json.get("description").and_then(|v| v.as_str()),
         Some("Updated")
     );
-    assert_eq!(
-        json.get("data")
-            .and_then(|v| v.get("name"))
-            .and_then(|v| v.as_str()),
-        Some("Car")
-    );
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Car"));
 }
 
 #[tokio::test]
@@ -317,10 +304,7 @@ async fn header_workspace_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
-        Some("Ana")
-    );
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -346,12 +330,7 @@ async fn root_document_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        json.get("data")
-            .and_then(|v| v.get("title"))
-            .and_then(|v| v.as_str()),
-        Some("Oi")
-    );
+    assert_eq!(json.get("title").and_then(|v| v.as_str()), Some("Oi"));
 }
 
 #[tokio::test]
@@ -375,12 +354,7 @@ async fn workspace_document_routes_work() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        json.get("data")
-            .and_then(|v| v.get("title"))
-            .and_then(|v| v.as_str()),
-        Some("Oi")
-    );
+    assert_eq!(json.get("title").and_then(|v| v.as_str()), Some("Oi"));
 }
 
 #[tokio::test]
@@ -409,10 +383,7 @@ async fn use_default_workspace_when_enabled() {
         .unwrap();
     let (status, json) = request_json(&app, create).await;
     assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(
-        json.get("pk").and_then(|v| v.as_str()),
-        Some("/users")
-    );
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -462,7 +433,8 @@ async fn document_pk_is_normalized() {
         .unwrap();
     let (status, json) = request_json(&app, create).await;
     assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(json.get("pk").and_then(|v| v.as_str()), Some("/users"));
+    assert!(json.get("pk").is_none());
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -479,7 +451,7 @@ async fn document_id_is_uuid_v7() {
         .unwrap();
     let (status, json) = request_json(&app, create).await;
     assert_eq!(status, StatusCode::CREATED);
-    let id = json.get("id").and_then(|v| v.as_str()).expect("id");
+    let id = json.get("$id").and_then(|v| v.as_str()).expect("id");
     let uuid = Uuid::parse_str(id).expect("uuid");
     assert_eq!(uuid.get_version(), Some(uuid::Version::SortRand));
 }
@@ -506,10 +478,7 @@ async fn get_document_success() {
         .unwrap();
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        json.get("data").and_then(|v| v.get("name")).and_then(|v| v.as_str()),
-        Some("Ana")
-    );
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -552,7 +521,7 @@ async fn header_document_put_patch_delete() {
         .unwrap();
     let (status, json) = request_json(&app, put).await;
     assert_eq!(status, StatusCode::CREATED);
-    let id = json.get("id").and_then(|v| v.as_str()).unwrap().to_string();
+    let id = json.get("$id").and_then(|v| v.as_str()).unwrap().to_string();
 
     let patch = Request::builder()
         .method("PATCH")
@@ -563,7 +532,7 @@ async fn header_document_put_patch_delete() {
         .unwrap();
     let (status, json) = request_json(&app, patch).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.get("id").and_then(|v| v.as_str()), Some(id.as_str()));
+    assert_eq!(json.get("$id").and_then(|v| v.as_str()), Some(id.as_str()));
 
     let delete = Request::builder()
         .method("DELETE")
