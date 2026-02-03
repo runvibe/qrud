@@ -519,36 +519,83 @@ impl Store {
         &self,
         workspace_id: &str,
         pk: &str,
+        limit: Option<i64>,
+        offset: i64,
     ) -> Result<Vec<Document>, String> {
+        let offset = offset.max(0);
         match &self.backend {
             Backend::Sqlite(pool) => {
-                let rows = sqlx::query(
-                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
-                     FROM documents
-                     WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
-                     ORDER BY updated_at DESC;",
-                )
-                .bind(workspace_id)
-                .bind(pk)
-                .fetch_all(pool)
-                .await
-                .map_err(|err| err.to_string())?;
+                let rows = match limit {
+                    Some(limit) => {
+                        sqlx::query(
+                            "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                             FROM documents
+                             WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
+                             ORDER BY updated_at DESC
+                             LIMIT ? OFFSET ?;",
+                        )
+                        .bind(workspace_id)
+                        .bind(pk)
+                        .bind(limit)
+                        .bind(offset)
+                        .fetch_all(pool)
+                        .await
+                        .map_err(|err| err.to_string())?
+                    }
+                    None => {
+                        sqlx::query(
+                            "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                             FROM documents
+                             WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
+                             ORDER BY updated_at DESC
+                             LIMIT -1 OFFSET ?;",
+                        )
+                        .bind(workspace_id)
+                        .bind(pk)
+                        .bind(offset)
+                        .fetch_all(pool)
+                        .await
+                        .map_err(|err| err.to_string())?
+                    }
+                };
                 rows.into_iter()
                     .map(document_from_sqlite)
                     .collect::<Result<Vec<_>, _>>()
             }
             Backend::Postgres(pool) => {
-                let rows = sqlx::query(
-                    "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
-                     FROM documents
-                     WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
-                     ORDER BY updated_at DESC;",
-                )
-                .bind(workspace_id)
-                .bind(pk)
-                .fetch_all(pool)
-                .await
-                .map_err(|err| err.to_string())?;
+                let rows = match limit {
+                    Some(limit) => {
+                        sqlx::query(
+                            "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                             FROM documents
+                             WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
+                             ORDER BY updated_at DESC
+                             LIMIT $3 OFFSET $4;",
+                        )
+                        .bind(workspace_id)
+                        .bind(pk)
+                        .bind(limit)
+                        .bind(offset)
+                        .fetch_all(pool)
+                        .await
+                        .map_err(|err| err.to_string())?
+                    }
+                    None => {
+                        sqlx::query(
+                            "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
+                             FROM documents
+                             WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
+                             ORDER BY updated_at DESC
+                             OFFSET $3;",
+                        )
+                        .bind(workspace_id)
+                        .bind(pk)
+                        .bind(offset)
+                        .fetch_all(pool)
+                        .await
+                        .map_err(|err| err.to_string())?
+                    }
+                };
                 rows.into_iter()
                     .map(document_from_postgres)
                     .collect::<Result<Vec<_>, _>>()

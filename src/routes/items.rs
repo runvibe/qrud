@@ -1,7 +1,8 @@
-use axum::extract::{Extension, Path};
+use axum::extract::{Extension, Path, Query};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use serde::Deserialize;
 use serde_json::{json, Value as JsonValue};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -257,8 +258,9 @@ pub(crate) async fn create_document_workspace(
 pub(crate) async fn get_document_workspace(
     Extension(state): Extension<AppState>,
     Path((workspace, pk)): Path<(String, String)>,
+    Query(params): Query<ListParams>,
 ) -> Response {
-    document_get(state, workspace, pk).await
+    document_get(state, workspace, pk, params).await
 }
 
 #[utoipa::path(
@@ -366,12 +368,13 @@ pub(crate) async fn get_document_root(
     Extension(state): Extension<AppState>,
     Path(pk): Path<String>,
     headers: HeaderMap,
+    Query(params): Query<ListParams>,
 ) -> Response {
     let workspace = match workspace_from_header(&headers, state.use_default_workspace) {
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    document_get(state, workspace, pk).await
+    document_get(state, workspace, pk, params).await
 }
 
 #[utoipa::path(
@@ -513,7 +516,12 @@ async fn document_create(
     }
 }
 
-async fn document_get(state: AppState, workspace: String, pk: String) -> Response {
+async fn document_get(
+    state: AppState,
+    workspace: String,
+    pk: String,
+    params: ListParams,
+) -> Response {
     let selector = match parse_document_selector(&pk) {
         Ok(selector) => selector,
         Err(resp) => return resp,
@@ -531,9 +539,12 @@ async fn document_get(state: AppState, workspace: String, pk: String) -> Respons
         };
     }
 
+    let offset = params.offset.unwrap_or(0).max(0);
+    let limit = params.limit.filter(|value| *value > 0);
+
     match state
         .store
-        .fetch_documents_by_pk(&workspace_data.id, &selector.pk)
+        .fetch_documents_by_pk(&workspace_data.id, &selector.pk, limit, offset)
         .await
     {
         Ok(docs) => {
@@ -546,9 +557,12 @@ async fn document_get(state: AppState, workspace: String, pk: String) -> Respons
                 Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
             };
             let items = docs.into_iter().map(document_to_output).collect::<Vec<_>>();
+            let limit_used = limit.unwrap_or(items.len() as i64);
             let payload = json!({
                 "items": items,
-                "total": total
+                "total": total,
+                "limit": limit_used,
+                "offset": offset
             });
             (StatusCode::OK, Json(payload)).into_response()
         }
@@ -763,6 +777,12 @@ fn validate_pk(pk: &str) -> Result<String, Response> {
 struct DocumentSelector {
     pk: String,
     id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct ListParams {
+    limit: Option<i64>,
+    offset: Option<i64>,
 }
 
 fn parse_document_selector(raw: &str) -> Result<DocumentSelector, Response> {

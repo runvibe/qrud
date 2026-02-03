@@ -281,6 +281,8 @@ async fn delete_document_then_get_returns_404() {
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(0));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(0));
+    assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
 }
 
 #[tokio::test]
@@ -311,6 +313,8 @@ async fn header_workspace_routes_work() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Ana")
@@ -345,6 +349,8 @@ async fn root_document_routes_work() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(
         array[0].get("title").and_then(|v| v.as_str()),
         Some("Oi")
@@ -377,6 +383,8 @@ async fn workspace_document_routes_work() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(
         array[0].get("title").and_then(|v| v.as_str()),
         Some("Oi")
@@ -509,6 +517,8 @@ async fn get_document_success() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Ana")
@@ -642,6 +652,8 @@ async fn allow_duplicate_pk_returns_latest() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(2));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(2));
+    assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Second")
