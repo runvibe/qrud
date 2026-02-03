@@ -2,8 +2,8 @@
 name = "qrud"
 version = "0.1.0"
 edition = "2024"
-description = "Servidor HTTP de mock com semantica CRUD."
-authors = ["Philippe Assis <codephilippe@gmail.com>"]
+description = "Server for CRUD operations"
+authors = ["Philippe Assis <philippe.assis@weops.ai>"]
 license = "Apache-2.0"
 
 [dependencies]
@@ -12,7 +12,13 @@ tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "net"] }
 clap = { version = "4.5.56", features = ["derive"] }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.149"
-sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite", "postgres", "migrate", "macros"] }
+sqlx = { version = "0.8.6", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "postgres",
+    "migrate",
+    "macros",
+] }
 serde_urlencoded = "0.7.1"
 utoipa = { version = "5.0.0", features = ["macros"] }
 utoipa-axum = "0.2.0"
