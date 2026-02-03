@@ -547,11 +547,12 @@ async fn document_get(
         .map(|value| value.trim().to_lowercase())
         .filter(|value| !value.is_empty());
 
-    let order_str = match params.order.as_deref() {
-        None => "desc",
-        Some("asc") => "asc",
-        Some("desc") => "desc",
-        Some(_) => return json_error(StatusCode::BAD_REQUEST, "Invalid order"),
+    let order_value = params.order.as_deref().unwrap_or("desc");
+    let order_value = order_value.to_ascii_lowercase();
+    let order_str = match order_value.as_str() {
+        "asc" => "asc",
+        "desc" => "desc",
+        _ => return json_error(StatusCode::BAD_REQUEST, "Invalid order"),
     };
     let order_desc = order_str == "desc";
 

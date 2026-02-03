@@ -667,6 +667,70 @@ async fn allow_duplicate_pk_returns_latest() {
 }
 
 #[tokio::test]
+async fn pk_list_order_param_sorts_created_at() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"First"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    sleep(Duration::from_millis(2)).await;
+
+    let create = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Second"}"#))
+        .unwrap();
+    let status = request_status(&app, create).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users?order=asc")
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    let items = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(
+        items[0].get("name").and_then(|v| v.as_str()),
+        Some("First")
+    );
+    assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("asc"));
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users?order=DESC")
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    let items = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(
+        items[0].get("name").and_then(|v| v.as_str()),
+        Some("Second")
+    );
+    assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+}
+
+#[tokio::test]
 async fn pk_list_term_filters_results() {
     let app = build_app().await;
     let workspace_name = create_workspace(&app).await;
