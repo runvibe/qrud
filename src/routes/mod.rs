@@ -10,9 +10,8 @@ use crate::services::AppState;
 
 pub fn router(state: AppState) -> Router {
     let (router, api) = OpenApiRouter::new()
+        .routes(routes!(items::list_collection, items::create_item))
         .routes(routes!(
-            items::list_collection,
-            items::create_item,
             items::get_item,
             items::put_item,
             items::patch_item,

@@ -14,6 +14,12 @@ Para persistir em arquivo:
 cargo run -- --port 3000 --db ./qrud.db
 ```
 
+## OpenAPI
+
+```bash
+curl http://localhost:3000/openapi.json
+```
+
 ## Rotas
 
 ### Criar
