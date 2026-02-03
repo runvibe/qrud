@@ -630,7 +630,7 @@ async fn health_and_info_routes() {
     let (status, json) = request_json(&app, info).await;
     assert_eq!(status, StatusCode::OK);
     let database = json.get("database").expect("database info");
-    assert_eq!(database.get("backend").and_then(|v| v.as_str()), Some("sqlite"));
+    assert_eq!(database.get("drive").and_then(|v| v.as_str()), Some("sqlite"));
     assert_eq!(
         database
             .get("sqlite")

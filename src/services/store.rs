@@ -24,7 +24,7 @@ pub struct Store {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DatabaseInfo {
-    pub backend: &'static str,
+    pub drive: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sqlite: Option<SqliteInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,7 +69,7 @@ impl Store {
             .map_err(|err| err.to_string())?;
         migrate_sqlite(&pool).await?;
         let info = DatabaseInfo {
-            backend: "sqlite",
+            drive: "sqlite",
             sqlite: Some(SqliteInfo {
                 in_memory: path == ":memory:",
                 path: if path == ":memory:" {
@@ -96,7 +96,7 @@ impl Store {
             .map_err(|err| err.to_string())?;
         migrate_postgres(&pool).await?;
         let info = DatabaseInfo {
-            backend: "postgres",
+            drive: "postgres",
             sqlite: None,
             postgres: Some(parse_postgres_info(url)),
         };
