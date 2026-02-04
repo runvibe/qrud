@@ -530,7 +530,7 @@ impl Store {
         let order_dir = if order_desc { "DESC" } else { "ASC" };
         match &self.backend {
             Backend::Sqlite(pool) => {
-                let (sql, bind_limit, bind_offset) = if term_exact.is_some() {
+                let (sql, bind_limit, bind_offset, bind_term) = if term_exact.is_some() {
                     let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
@@ -542,27 +542,11 @@ impl Store {
                            OR lower(coalesce(json_extract(data, '$.category'), '')) LIKE ?
                            OR lower(coalesce(json_extract(data, '$.description'), '')) LIKE ?
                          )
-                         ORDER BY
-                           CASE
-                             WHEN coalesce(json_extract(data, '$.name'), '') = ? THEN 0
-                             WHEN coalesce(json_extract(data, '$.title'), '') = ? THEN 1
-                             WHEN coalesce(json_extract(data, '$.label'), '') = ? THEN 2
-                             WHEN coalesce(json_extract(data, '$.reference'), '') = ? THEN 3
-                             WHEN coalesce(json_extract(data, '$.category'), '') = ? THEN 4
-                             WHEN coalesce(json_extract(data, '$.description'), '') = ? THEN 5
-                             WHEN lower(coalesce(json_extract(data, '$.name'), '')) = ? THEN 6
-                             WHEN lower(coalesce(json_extract(data, '$.title'), '')) = ? THEN 7
-                             WHEN lower(coalesce(json_extract(data, '$.label'), '')) = ? THEN 8
-                             WHEN lower(coalesce(json_extract(data, '$.reference'), '')) = ? THEN 9
-                             WHEN lower(coalesce(json_extract(data, '$.category'), '')) = ? THEN 10
-                             WHEN lower(coalesce(json_extract(data, '$.description'), '')) = ? THEN 11
-                             ELSE 12
-                           END,
-                           created_at {order_dir}
+                         ORDER BY created_at {order_dir}
                          LIMIT ? OFFSET ?;",
                         order_dir = order_dir
                     );
-                    (sql, true, true)
+                    (sql, true, true, true)
                 } else if limit.is_some() {
                     let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
@@ -572,7 +556,7 @@ impl Store {
                          LIMIT ? OFFSET ?;",
                         order_dir = order_dir
                     );
-                    (sql, true, true)
+                    (sql, true, true, false)
                 } else {
                     let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
@@ -582,22 +566,15 @@ impl Store {
                          LIMIT -1 OFFSET ?;",
                         order_dir = order_dir
                     );
-                    (sql, false, true)
+                    (sql, false, true, false)
                 };
 
                 let mut query = sqlx::query(&sql).bind(workspace_id).bind(pk);
-                if let (Some(term_exact), Some(term_like)) =
-                    (term_exact.as_ref(), term_like.as_ref())
-                {
-                    let term_lower = term_exact.to_lowercase();
-                    for _ in 0..6 {
-                        query = query.bind(term_like);
-                    }
-                    for _ in 0..6 {
-                        query = query.bind(term_exact);
-                    }
-                    for _ in 0..6 {
-                        query = query.bind(term_lower.clone());
+                if bind_term {
+                    if let Some(term_like) = term_like.as_ref() {
+                        for _ in 0..6 {
+                            query = query.bind(term_like);
+                        }
                     }
                 }
                 if bind_limit {
@@ -615,7 +592,7 @@ impl Store {
                     .collect::<Result<Vec<_>, _>>()
             }
             Backend::Postgres(pool) => {
-                let (sql, bind_limit, bind_offset) = if term_exact.is_some() {
+                let (sql, bind_limit, bind_offset, bind_term) = if term_exact.is_some() {
                     let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
@@ -627,27 +604,11 @@ impl Store {
                            OR lower(coalesce(data::jsonb->>'category', '')) LIKE $7
                            OR lower(coalesce(data::jsonb->>'description', '')) LIKE $8
                          )
-                         ORDER BY
-                           CASE
-                             WHEN coalesce(data::jsonb->>'name', '') = $9 THEN 0
-                             WHEN coalesce(data::jsonb->>'title', '') = $10 THEN 1
-                             WHEN coalesce(data::jsonb->>'label', '') = $11 THEN 2
-                             WHEN coalesce(data::jsonb->>'reference', '') = $12 THEN 3
-                             WHEN coalesce(data::jsonb->>'category', '') = $13 THEN 4
-                             WHEN coalesce(data::jsonb->>'description', '') = $14 THEN 5
-                             WHEN lower(coalesce(data::jsonb->>'name', '')) = $15 THEN 6
-                             WHEN lower(coalesce(data::jsonb->>'title', '')) = $16 THEN 7
-                             WHEN lower(coalesce(data::jsonb->>'label', '')) = $17 THEN 8
-                             WHEN lower(coalesce(data::jsonb->>'reference', '')) = $18 THEN 9
-                             WHEN lower(coalesce(data::jsonb->>'category', '')) = $19 THEN 10
-                             WHEN lower(coalesce(data::jsonb->>'description', '')) = $20 THEN 11
-                             ELSE 12
-                           END,
-                           created_at {order_dir}
-                         LIMIT $21 OFFSET $22;",
+                         ORDER BY created_at {order_dir}
+                         LIMIT $9 OFFSET $10;",
                         order_dir = order_dir
                     );
-                    (sql, true, true)
+                    (sql, true, true, true)
                 } else if limit.is_some() {
                     let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
@@ -657,7 +618,7 @@ impl Store {
                          LIMIT $3 OFFSET $4;",
                         order_dir = order_dir
                     );
-                    (sql, true, true)
+                    (sql, true, true, false)
                 } else {
                     let sql = format!(
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
@@ -667,22 +628,15 @@ impl Store {
                          OFFSET $3;",
                         order_dir = order_dir
                     );
-                    (sql, false, true)
+                    (sql, false, true, false)
                 };
 
                 let mut query = sqlx::query(&sql).bind(workspace_id).bind(pk);
-                if let (Some(term_exact), Some(term_like)) =
-                    (term_exact.as_ref(), term_like.as_ref())
-                {
-                    let term_lower = term_exact.to_lowercase();
-                    for _ in 0..6 {
-                        query = query.bind(term_like);
-                    }
-                    for _ in 0..6 {
-                        query = query.bind(term_exact);
-                    }
-                    for _ in 0..6 {
-                        query = query.bind(term_lower.clone());
+                if bind_term {
+                    if let Some(term_like) = term_like.as_ref() {
+                        for _ in 0..6 {
+                            query = query.bind(term_like);
+                        }
                     }
                 }
                 if bind_limit {
