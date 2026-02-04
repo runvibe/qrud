@@ -91,8 +91,7 @@ fn write_test_openapi_file() -> PathBuf {
                     "required": ["name"],
                     "properties": {
                         "name": { "type": "string" }
-                    },
-                    "additionalProperties": false
+                    }
                 }
             }
         }
@@ -958,6 +957,16 @@ async fn contract_validates_request_payload() {
         .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
         .body(Body::from(r#"{"label":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana","extra":123}"#))
         .unwrap();
     let status = request_status(&app, request).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);

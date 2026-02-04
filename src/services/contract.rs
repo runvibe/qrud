@@ -98,7 +98,8 @@ fn extract_request_schema(spec: &Value, operation: &Value) -> Result<Option<Valu
     let Some(schema) = media_type.get("schema") else {
         return Ok(None);
     };
-    let resolved_schema = resolve_refs(spec, schema, 0)?;
+    let mut resolved_schema = resolve_refs(spec, schema, 0)?;
+    apply_openapi_defaults(&mut resolved_schema);
     Ok(Some(resolved_schema))
 }
 
@@ -133,6 +134,27 @@ fn resolve_refs(spec: &Value, value: &Value, depth: u8) -> Result<Value, String>
             Ok(Value::Array(out))
         }
         _ => Ok(value.clone()),
+    }
+}
+
+fn apply_openapi_defaults(schema: &mut Value) {
+    match schema {
+        Value::Object(map) => {
+            let has_properties = map.get("properties").and_then(Value::as_object).is_some();
+            let has_required = map.get("required").and_then(Value::as_array).is_some();
+            if (has_properties || has_required) && !map.contains_key("additionalProperties") {
+                map.insert("additionalProperties".to_string(), Value::Bool(false));
+            }
+            for entry in map.values_mut() {
+                apply_openapi_defaults(entry);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                apply_openapi_defaults(item);
+            }
+        }
+        _ => {}
     }
 }
 
