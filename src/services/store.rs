@@ -523,11 +523,17 @@ impl Store {
         limit: Option<i64>,
         offset: i64,
         order_desc: bool,
+        by: &str,
     ) -> Result<Vec<Document>, String> {
         let offset = offset.max(0);
         let term_exact = term.map(|value| value.to_string());
         let term_like = term.map(|value| format!("%{}%", value));
         let order_dir = if order_desc { "DESC" } else { "ASC" };
+        let order_col = if by == "updated_at" {
+            "updated_at"
+        } else {
+            "created_at"
+        };
         match &self.backend {
             Backend::Sqlite(pool) => {
                 let (sql, bind_limit, bind_offset, bind_term) = if term_exact.is_some() {
@@ -542,8 +548,9 @@ impl Store {
                            OR lower(coalesce(json_extract(data, '$.category'), '')) LIKE ?
                            OR lower(coalesce(json_extract(data, '$.description'), '')) LIKE ?
                          )
-                         ORDER BY created_at {order_dir}
+                         ORDER BY {order_col} {order_dir}
                          LIMIT ? OFFSET ?;",
+                        order_col = order_col,
                         order_dir = order_dir
                     );
                     (sql, true, true, true)
@@ -552,8 +559,9 @@ impl Store {
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
-                         ORDER BY created_at {order_dir}
+                         ORDER BY {order_col} {order_dir}
                          LIMIT ? OFFSET ?;",
+                        order_col = order_col,
                         order_dir = order_dir
                     );
                     (sql, true, true, false)
@@ -562,8 +570,9 @@ impl Store {
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = ? AND pk = ? AND deleted_at IS NULL
-                         ORDER BY created_at {order_dir}
+                         ORDER BY {order_col} {order_dir}
                          LIMIT -1 OFFSET ?;",
+                        order_col = order_col,
                         order_dir = order_dir
                     );
                     (sql, false, true, false)
@@ -604,8 +613,9 @@ impl Store {
                            OR lower(coalesce(data::jsonb->>'category', '')) LIKE $7
                            OR lower(coalesce(data::jsonb->>'description', '')) LIKE $8
                          )
-                         ORDER BY created_at {order_dir}
+                         ORDER BY {order_col} {order_dir}
                          LIMIT $9 OFFSET $10;",
+                        order_col = order_col,
                         order_dir = order_dir
                     );
                     (sql, true, true, true)
@@ -614,8 +624,9 @@ impl Store {
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
-                         ORDER BY created_at {order_dir}
+                         ORDER BY {order_col} {order_dir}
                          LIMIT $3 OFFSET $4;",
+                        order_col = order_col,
                         order_dir = order_dir
                     );
                     (sql, true, true, false)
@@ -624,8 +635,9 @@ impl Store {
                         "SELECT id, workspace_id, pk, data, created_at, updated_at, deleted_at
                          FROM documents
                          WHERE workspace_id = $1 AND pk = $2 AND deleted_at IS NULL
-                         ORDER BY created_at {order_dir}
+                         ORDER BY {order_col} {order_dir}
                          OFFSET $3;",
+                        order_col = order_col,
                         order_dir = order_dir
                     );
                     (sql, false, true, false)

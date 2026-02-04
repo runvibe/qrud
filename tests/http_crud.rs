@@ -284,6 +284,7 @@ async fn delete_document_then_get_returns_404() {
     assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
 }
 
 #[tokio::test]
@@ -317,6 +318,7 @@ async fn header_workspace_routes_work() {
     assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Ana")
@@ -354,6 +356,7 @@ async fn root_document_routes_work() {
     assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
     assert_eq!(
         array[0].get("title").and_then(|v| v.as_str()),
         Some("Oi")
@@ -389,6 +392,7 @@ async fn workspace_document_routes_work() {
     assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
     assert_eq!(
         array[0].get("title").and_then(|v| v.as_str()),
         Some("Oi")
@@ -524,6 +528,7 @@ async fn get_document_success() {
     assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Ana")
@@ -660,6 +665,7 @@ async fn allow_duplicate_pk_returns_latest() {
     assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(2));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
     assert_eq!(
         array[0].get("name").and_then(|v| v.as_str()),
         Some("Second")
@@ -695,7 +701,7 @@ async fn pk_list_order_param_sorts_created_at() {
 
     let get = Request::builder()
         .method("GET")
-        .uri("/users?order=asc")
+        .uri("/users?order=asc&by=created_at")
         .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
@@ -710,10 +716,11 @@ async fn pk_list_order_param_sorts_created_at() {
         Some("First")
     );
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("asc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
 
     let get = Request::builder()
         .method("GET")
-        .uri("/users?order=DESC")
+        .uri("/users?order=DESC&by=updated_at")
         .header("x-workspace-id", &workspace_name)
         .body(Body::empty())
         .unwrap();
@@ -728,6 +735,7 @@ async fn pk_list_order_param_sorts_created_at() {
         Some("Second")
     );
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
+    assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("updated_at"));
 }
 
 #[tokio::test]

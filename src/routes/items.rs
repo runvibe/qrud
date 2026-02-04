@@ -556,6 +556,14 @@ async fn document_get(
     };
     let order_desc = order_str == "desc";
 
+    let by_value = params.by.as_deref().unwrap_or("created_at");
+    let by_value = by_value.to_ascii_lowercase();
+    let by_str = match by_value.as_str() {
+        "created_at" => "created_at",
+        "updated_at" | "update_at" => "updated_at",
+        _ => return json_error(StatusCode::BAD_REQUEST, "Invalid by"),
+    };
+
     match state
         .store
         .fetch_documents_by_pk(
@@ -565,6 +573,7 @@ async fn document_get(
             limit,
             offset,
             order_desc,
+            by_str,
         )
         .await
     {
@@ -584,7 +593,8 @@ async fn document_get(
                 "total": total,
                 "limit": limit_used,
                 "offset": offset,
-                "order": order_str
+                "order": order_str,
+                "by": by_str
             });
             (StatusCode::OK, Json(payload)).into_response()
         }
@@ -807,6 +817,7 @@ pub(crate) struct ListParams {
     offset: Option<i64>,
     term: Option<String>,
     order: Option<String>,
+    by: Option<String>,
 }
 
 
