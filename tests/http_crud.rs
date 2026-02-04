@@ -2,23 +2,104 @@ use axum::body::{to_bytes, Body};
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::Router;
 use serde_json::Value as JsonValue;
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{sleep, Duration};
 use tower::ServiceExt;
 use uuid::Uuid;
 
 use qrud::routes::router;
-use qrud::services::{AppState, Store};
+use qrud::services::{ApiContract, AppState, Store};
 
 async fn build_app() -> Router {
     build_app_with_default(false).await
 }
 
 async fn build_app_with_default(use_default: bool) -> Router {
+    build_app_with_default_and_contract(use_default, None).await
+}
+
+async fn build_app_with_default_and_contract(use_default: bool, api_contract: Option<ApiContract>) -> Router {
     let store = Store::open_sqlite(":memory:")
         .await
         .expect("failed to open db");
-    let state = AppState::new(store, use_default);
+    let state = AppState::new(store, use_default, api_contract);
     router(state)
+}
+
+async fn build_app_with_openapi_contract() -> Router {
+    let contract_path = write_test_openapi_file();
+    let contract = ApiContract::from_file(contract_path.to_str().expect("openapi path"))
+        .expect("load openapi");
+    build_app_with_default_and_contract(false, Some(contract)).await
+}
+
+fn write_test_openapi_file() -> PathBuf {
+    let mut path = std::env::temp_dir();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    path.push(format!("qrud-openapi-{now}.json"));
+    let spec = serde_json::json!({
+        "openapi": "3.0.3",
+        "info": { "title": "test", "version": "1.0.0" },
+        "paths": {
+            "/users": {
+                "post": {
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/UserPayload" }
+                            }
+                        }
+                    }
+                },
+                "get": {}
+            },
+            "/users/{id}": {
+                "get": {},
+                "put": {
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/UserPayload" }
+                            }
+                        }
+                    }
+                },
+                "patch": {
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/UserPayload" }
+                            }
+                        }
+                    }
+                },
+                "delete": {}
+            }
+        },
+        "components": {
+            "schemas": {
+                "UserPayload": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                        "name": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    });
+    fs::write(&path, serde_json::to_string(&spec).expect("serialize openapi"))
+        .expect("write openapi");
+    path
 }
 
 async fn request_json(app: &Router, request: Request<Body>) -> (StatusCode, JsonValue) {
@@ -848,6 +929,48 @@ async fn openapi_route_available() {
     let (status, json) = request_json(&app, request).await;
     assert_eq!(status, StatusCode::OK);
     assert!(json.get("openapi").is_some());
+}
+
+#[tokio::test]
+async fn contract_rejects_unknown_pk_path() {
+    let app = build_app_with_openapi_contract().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/posts")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn contract_validates_request_payload() {
+    let app = build_app_with_openapi_contract().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"label":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::CREATED);
 }
 
 #[tokio::test]

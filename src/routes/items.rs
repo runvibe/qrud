@@ -492,6 +492,9 @@ async fn document_create(
     if selector.id.is_some() {
         return json_error(StatusCode::BAD_REQUEST, "Document id not allowed for POST");
     }
+    if let Err(resp) = validate_contract_route(&state, "post", &selector) {
+        return resp;
+    }
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -499,6 +502,9 @@ async fn document_create(
 
     if let JsonValue::Object(map) = &mut payload {
         map.remove("id");
+    }
+    if let Err(resp) = validate_contract_payload(&state, "post", &selector, &payload) {
+        return resp;
     }
 
     match state
@@ -526,6 +532,9 @@ async fn document_get(
         Ok(selector) => selector,
         Err(resp) => return resp,
     };
+    if let Err(resp) = validate_contract_route(&state, "get", &selector) {
+        return resp;
+    }
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -612,6 +621,9 @@ async fn document_put(
         Ok(selector) => selector,
         Err(resp) => return resp,
     };
+    if let Err(resp) = validate_contract_route(&state, "put", &selector) {
+        return resp;
+    }
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -619,6 +631,9 @@ async fn document_put(
 
     if let JsonValue::Object(map) = &mut payload {
         map.remove("id");
+    }
+    if let Err(resp) = validate_contract_payload(&state, "put", &selector, &payload) {
+        return resp;
     }
 
     let result = if let Some(id) = selector.id.as_deref() {
@@ -659,6 +674,9 @@ async fn document_patch(
         Ok(selector) => selector,
         Err(resp) => return resp,
     };
+    if let Err(resp) = validate_contract_route(&state, "patch", &selector) {
+        return resp;
+    }
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -668,6 +686,9 @@ async fn document_patch(
         map.remove("id");
     } else {
         return json_error(StatusCode::BAD_REQUEST, "Body must be a JSON object");
+    }
+    if let Err(resp) = validate_contract_payload(&state, "patch", &selector, &payload) {
+        return resp;
     }
 
     let existing_result = if let Some(id) = selector.id.as_deref() {
@@ -719,6 +740,9 @@ async fn document_delete(state: AppState, workspace: String, pk: String) -> Resp
         Ok(selector) => selector,
         Err(resp) => return resp,
     };
+    if let Err(resp) = validate_contract_route(&state, "delete", &selector) {
+        return resp;
+    }
     let workspace_data = match ensure_workspace(&state, &workspace).await {
         Ok(workspace) => workspace,
         Err(resp) => return resp,
@@ -847,6 +871,54 @@ fn parse_document_selector(raw: &str) -> Result<DocumentSelector, Response> {
 
     let pk = validate_pk(&normalized)?;
     Ok(DocumentSelector { pk, id: None })
+}
+
+fn validate_contract_route(
+    state: &AppState,
+    method: &str,
+    selector: &DocumentSelector,
+) -> Result<(), Response> {
+    let Some(contract) = state.api_contract.as_ref() else {
+        return Ok(());
+    };
+
+    let request_path = selector_request_path(selector);
+    if contract.validate_route(method, &request_path) {
+        return Ok(());
+    }
+    Err(json_error(
+        StatusCode::NOT_FOUND,
+        "Path not found in OpenAPI contract",
+    ))
+}
+
+fn validate_contract_payload(
+    state: &AppState,
+    method: &str,
+    selector: &DocumentSelector,
+    payload: &JsonValue,
+) -> Result<(), Response> {
+    let Some(contract) = state.api_contract.as_ref() else {
+        return Ok(());
+    };
+
+    let request_path = selector_request_path(selector);
+    match contract.validate_payload(method, &request_path, payload) {
+        Ok(()) => Ok(()),
+        Err(message) if message == "Route not found in OpenAPI" => Err(json_error(
+            StatusCode::NOT_FOUND,
+            "Path not found in OpenAPI contract",
+        )),
+        Err(message) => Err(json_error(StatusCode::BAD_REQUEST, &message)),
+    }
+}
+
+fn selector_request_path(selector: &DocumentSelector) -> String {
+    if let Some(id) = selector.id.as_deref() {
+        format!("{}/{}", selector.pk.trim_end_matches('/'), id)
+    } else {
+        selector.pk.clone()
+    }
 }
 
 fn is_reserved_pk(pk: &str) -> bool {

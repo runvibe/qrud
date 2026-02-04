@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use clap::Parser;
 
 use crate::routes::router;
-use crate::services::{AppState, Store};
+use crate::services::{ApiContract, AppState, Store};
 
 const DEFAULT_PORT: u16 = 3000;
 
@@ -30,6 +30,8 @@ struct Cli {
     postgres: Option<String>,
     #[arg(long, default_value_t = false)]
     use_default: bool,
+    #[arg(long, value_name = "FILE")]
+    openapi3: Option<String>,
 }
 
 #[tokio::main]
@@ -50,7 +52,14 @@ async fn main() {
                 .expect("failed to open sqlite db")
         }
     };
-    let state = AppState::new(store, cli.use_default);
+    let api_contract = cli
+        .openapi3
+        .as_deref()
+        .map(ApiContract::from_file)
+        .transpose()
+        .expect("failed to load openapi3 file");
+
+    let state = AppState::new(store, cli.use_default, api_contract);
 
     let app = router(state);
 
