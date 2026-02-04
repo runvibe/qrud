@@ -70,13 +70,10 @@ impl ApiContract {
             return Ok(());
         };
 
-        let compiled = jsonschema::JSONSchema::compile(schema)
+        let compiled = jsonschema::validator_for(schema)
             .map_err(|err| format!("Invalid schema: {err}"))?;
-        if let Err(mut errs) = compiled.validate(payload) {
-            if let Some(first) = errs.next() {
-                return Err(format!("Payload validation failed: {first}"));
-            }
-            return Err("Payload validation failed".to_string());
+        if let Err(err) = compiled.validate(payload) {
+            return Err(format!("Payload validation failed: {err}"));
         }
 
         Ok(())
