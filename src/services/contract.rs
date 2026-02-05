@@ -1,3 +1,4 @@
+use fancy_regex::Regex;
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -75,6 +76,9 @@ impl ApiContract {
             .build(schema)
             .map_err(|err| format!("Invalid schema: {err}"))?;
         if let Err(err) = compiled.validate(payload) {
+            return Err(format!("Payload validation failed: {err}"));
+        }
+        if let Err(err) = validate_schema_patterns(schema, payload) {
             return Err(format!("Payload validation failed: {err}"));
         }
 
@@ -157,6 +161,121 @@ fn apply_openapi_defaults(schema: &mut Value) {
             }
         }
         _ => {}
+    }
+}
+
+fn validate_schema_patterns(schema: &Value, payload: &Value) -> Result<(), String> {
+    validate_schema_patterns_at(schema, payload, "")
+}
+
+fn validate_schema_patterns_at(schema: &Value, payload: &Value, path: &str) -> Result<(), String> {
+    if let Some(pattern) = schema.get("pattern").and_then(Value::as_str) {
+        if let Some(value) = payload.as_str() {
+            let regex = Regex::new(pattern)
+                .map_err(|err| format!("Invalid pattern at {path}: {err}"))?;
+            let matches = regex
+                .is_match(value)
+                .map_err(|err| format!("Invalid pattern at {path}: {err}"))?;
+            if !matches {
+                return Err(format!(
+                    "Property {} does not match pattern",
+                    if path.is_empty() { "<root>" } else { path }
+                ));
+            }
+        }
+    }
+
+    if let Some(all_of) = schema.get("allOf").and_then(Value::as_array) {
+        for entry in all_of {
+            validate_schema_patterns_at(entry, payload, path)?;
+        }
+    }
+
+    if let Some(any_of) = schema.get("anyOf").and_then(Value::as_array) {
+        if !any_of.is_empty() {
+            let mut matched = false;
+            let mut last_err = None;
+            for entry in any_of {
+                match validate_schema_patterns_at(entry, payload, path) {
+                    Ok(()) => {
+                        matched = true;
+                        break;
+                    }
+                    Err(err) => last_err = Some(err),
+                }
+            }
+            if !matched {
+                if let Some(err) = last_err {
+                    return Err(err);
+                }
+            }
+        }
+    }
+
+    if let Some(one_of) = schema.get("oneOf").and_then(Value::as_array) {
+        if !one_of.is_empty() {
+            let mut matches = 0;
+            let mut last_err = None;
+            for entry in one_of {
+                match validate_schema_patterns_at(entry, payload, path) {
+                    Ok(()) => matches += 1,
+                    Err(err) => last_err = Some(err),
+                }
+            }
+            if matches == 0 {
+                if let Some(err) = last_err {
+                    return Err(err);
+                }
+            }
+        }
+    }
+
+    if let Some(properties) = schema.get("properties").and_then(Value::as_object) {
+        if let Some(object) = payload.as_object() {
+            for (name, prop_schema) in properties {
+                if let Some(value) = object.get(name) {
+                    let next_path = if path.is_empty() {
+                        name.to_string()
+                    } else {
+                        format!("{path}.{name}")
+                    };
+                    validate_schema_patterns_at(prop_schema, value, &next_path)?;
+                }
+            }
+        }
+    }
+
+    if let Some(items_schema) = schema.get("items") {
+        if let Some(items) = payload.as_array() {
+            match items_schema {
+                Value::Array(schemas) => {
+                    for (index, item) in items.iter().enumerate() {
+                        let schema_for_item =
+                            schemas.get(index).or_else(|| schemas.last());
+                        if let Some(schema_for_item) = schema_for_item {
+                            let next_path = format_array_path(path, index);
+                            validate_schema_patterns_at(schema_for_item, item, &next_path)?;
+                        }
+                    }
+                }
+                _ => {
+                    for (index, item) in items.iter().enumerate() {
+                        let next_path = format_array_path(path, index);
+                        validate_schema_patterns_at(items_schema, item, &next_path)?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn format_array_path(path: &str, index: usize) -> String {
+    if path.is_empty() {
+        format!("[{index}]")
+    } else {
+        format!("{path}[{index}]")
     }
 }
 

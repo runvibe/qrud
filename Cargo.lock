@@ -1316,6 +1316,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
+ "fancy-regex",
  "jsonschema",
  "serde",
  "serde_json",
