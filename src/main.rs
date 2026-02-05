@@ -5,6 +5,9 @@ mod services;
 use std::net::SocketAddr;
 
 use clap::Parser;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
+use tracing::Level;
+use tracing_subscriber::EnvFilter;
 
 use crate::routes::router;
 use crate::services::{ApiContract, AppState, Store};
@@ -31,11 +34,14 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     use_default: bool,
     #[arg(long, value_name = "FILE")]
-    openapi3: Option<String>,
+    schema: Option<String>,
 }
 
 #[tokio::main]
 async fn main() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+
     let cli = Cli::parse();
     let addr: SocketAddr = format!("{}:{}", cli.host, cli.port)
         .parse()
@@ -53,22 +59,24 @@ async fn main() {
         }
     };
     let api_contract = cli
-        .openapi3
+        .schema
         .as_deref()
         .map(ApiContract::from_file)
         .transpose()
-        .expect("failed to load openapi3 file");
+        .expect("failed to load schema file");
 
     let state = AppState::new(store, cli.use_default, api_contract);
 
-    let app = router(state);
+    let trace_layer = TraceLayer::new_for_http()
+        .make_span_with(DefaultMakeSpan::new().level(Level::DEBUG))
+        .on_request(DefaultOnRequest::new().level(Level::DEBUG))
+        .on_response(DefaultOnResponse::new().level(Level::DEBUG));
+    let app = router(state).layer(trace_layer);
 
     println!("qrud listening on http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("failed to bind address");
-    axum::serve(listener, app)
-        .await
-        .expect("server error");
+    axum::serve(listener, app).await.expect("server error");
 }
