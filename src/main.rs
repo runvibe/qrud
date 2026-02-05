@@ -5,8 +5,6 @@ mod services;
 use std::net::SocketAddr;
 
 use clap::Parser;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
-use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 use crate::routes::router;
@@ -67,16 +65,14 @@ async fn main() {
 
     let state = AppState::new(store, cli.use_default, api_contract);
 
-    let trace_layer = TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(Level::DEBUG))
-        .on_request(DefaultOnRequest::new().level(Level::DEBUG))
-        .on_response(DefaultOnResponse::new().level(Level::DEBUG));
-    let app = router(state).layer(trace_layer);
+    let app = router(state);
 
     println!("qrud listening on http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("failed to bind address");
-    axum::serve(listener, app).await.expect("server error");
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+        .await
+        .expect("server error");
 }

@@ -28,7 +28,6 @@ time = { version = "0.3.36", features = ["formatting"] }
 jsonschema = { version = "0.41.0", default-features = false }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-tower-http = { version = "0.6.8", features = ["trace"] }
 
 [dev-dependencies]
 tower = { version = "0.5.2", features = ["util"] }

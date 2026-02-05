@@ -1,9 +1,10 @@
 mod items;
+mod logging;
 
 use std::sync::Arc;
 
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{middleware, Extension, Json, Router};
 use utoipa::openapi::{ContactBuilder, InfoBuilder, LicenseBuilder, OpenApiBuilder, Paths};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -49,6 +50,7 @@ pub fn router(state: AppState) -> Router {
             }),
         )
         .layer(Extension(state))
+        .layer(middleware::from_fn(logging::log_request_response))
 }
 
 fn build_openapi() -> utoipa::openapi::OpenApi {
