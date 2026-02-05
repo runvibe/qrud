@@ -70,7 +70,9 @@ impl ApiContract {
             return Ok(());
         };
 
-        let compiled = jsonschema::validator_for(schema)
+        let compiled = jsonschema::options()
+            .should_validate_formats(true)
+            .build(schema)
             .map_err(|err| format!("Invalid schema: {err}"))?;
         if let Err(err) = compiled.validate(payload) {
             return Err(format!("Payload validation failed: {err}"));

@@ -90,7 +90,10 @@ fn write_test_openapi_file() -> PathBuf {
                     "type": "object",
                     "required": ["name"],
                     "properties": {
-                        "name": { "type": "string" }
+                        "name": { "type": "string" },
+                        "email": { "type": "string", "format": "email" },
+                        "userId": { "type": "string", "format": "uuid" },
+                        "code": { "type": "string", "pattern": "^[0-9a-fA-F-]{36}$" }
                     }
                 }
             }
@@ -976,7 +979,39 @@ async fn contract_validates_request_payload() {
         .uri("/users")
         .header("x-workspace-id", &workspace_name)
         .header("content-type", "application/json")
-        .body(Body::from(r#"{"name":"Ana"}"#))
+        .body(Body::from(r#"{"name":"Ana","email":"not-an-email"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana","userId":"not-a-uuid"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana","code":"invalid"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"name":"Ana","email":"ana@example.com","userId":"3fa85f64-5717-4562-b3fc-2c963f66afa6","code":"3fa85f64-5717-4562-b3fc-2c963f66afa6"}"#,
+        ))
         .unwrap();
     let status = request_status(&app, request).await;
     assert_eq!(status, StatusCode::CREATED);
