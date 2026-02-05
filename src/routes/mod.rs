@@ -1,5 +1,7 @@
-mod items;
+mod common;
+mod documents;
 mod logging;
+mod workspaces;
 
 use std::sync::Arc;
 
@@ -12,29 +14,29 @@ use crate::services::AppState;
 
 pub fn router(state: AppState) -> Router {
     let (router, api) = OpenApiRouter::with_openapi(build_openapi())
-        .routes(routes!(items::list_workspaces, items::create_workspace))
+        .routes(routes!(workspaces::list_workspaces, workspaces::create_workspace))
         .routes(routes!(
-            items::get_workspace,
-            items::put_workspace,
-            items::patch_workspace,
-            items::delete_workspace
+            workspaces::get_workspace,
+            workspaces::put_workspace,
+            workspaces::patch_workspace,
+            workspaces::delete_workspace
         ))
         .routes(routes!(
-            items::get_document_root,
-            items::create_document_root,
-            items::put_document_root,
-            items::patch_document_root,
-            items::delete_document_root
+            documents::get_document_root,
+            documents::create_document_root,
+            documents::put_document_root,
+            documents::patch_document_root,
+            documents::delete_document_root
         ))
         .routes(routes!(
-            items::get_document_workspace,
-            items::create_document_workspace,
-            items::put_document_workspace,
-            items::patch_document_workspace,
-            items::delete_document_workspace
+            documents::get_document_workspace,
+            documents::create_document_workspace,
+            documents::put_document_workspace,
+            documents::patch_document_workspace,
+            documents::delete_document_workspace
         ))
-        .routes(routes!(items::health))
-        .routes(routes!(items::info))
+        .routes(routes!(documents::health))
+        .routes(routes!(documents::info))
         .split_for_parts();
 
     let api_json = serde_json::to_value(&api).expect("failed to serialize openapi");

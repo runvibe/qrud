@@ -34,6 +34,125 @@ cargo run -- --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
 curl http://localhost:3000/openapi.json
 ```
 
+## Documentacao detalhada
+
+### Conceitos
+
+Workspace e o namespace (multi-tenant) do dado. O nome deve ser `dash-case` e unico. Se o banco estiver vazio, o workspace `default` e criado automaticamente. Com `--use-default`, o header `x-workspace-id` passa a ser opcional.
+
+Documento e qualquer JSON armazenado sob uma chave de path (`pk`). O `pk` pode ter mais de um segmento, por exemplo `/users` ou `/orders/2024`.
+
+### Endpoints principais
+
+- `GET /health` retorna `200` com "OK".
+- `GET /info` retorna informacoes do banco conectado.
+- `GET /openapi.json` retorna a especificacao OpenAPI gerada.
+
+### Workspaces
+
+- `POST /workspaces` cria workspace. Nome deve ser `dash-case`.
+- `GET /workspaces` lista workspaces ativos.
+- `GET /workspaces/{workspace}` busca workspace.
+- `PUT /workspaces/{workspace}` atualiza nome e descricao.
+- `PATCH /workspaces/{workspace}` atualiza parcialmente nome ou descricao.
+- `DELETE /workspaces/{workspace}` faz soft delete e retorna `204` se existir.
+
+### Documentos
+
+As rotas aceitam dois formatos:
+
+- Via header: `/{*pk}` com `x-workspace-id: <workspace_name>`.
+- Via path: `/workspaces/{workspace}/{*pk}`.
+
+Regras principais:
+
+- `POST` cria e ignora `id` no payload. Se o path terminar com UUID, retorna erro.
+- `PUT` faz upsert: cria se nao existir e atualiza se existir. Se o path terminar com UUID, usa como id.
+- `PATCH` faz merge superficial apenas no nivel raiz. Exige JSON object e ignora `id`.
+- `DELETE` retorna `204` se existir e `404` caso contrario.
+
+O `pk` nao pode ser reservado para `health`, `heath`, `info`, `workspaces`, `documents`.
+
+### Listagem, busca e ordenacao
+
+`GET` em colecao (quando o path nao termina com UUID) suporta:
+
+- `term`: busca case-insensitive nos campos `name`, `title`, `label`, `reference`, `category`, `description`.
+- `limit` e `offset`: paginacao.
+- `order`: `asc` ou `desc` (padrao `desc`).
+- `by`: `created_at` ou `updated_at` (padrao `created_at`).
+
+Resposta inclui: `items`, `total`, `limit`, `offset`, `order`, `by`.
+
+### Formato de saida
+
+Todo documento retornado inclui:
+
+- `$id`, `$createdAt`, `$updatedAt`.
+- `$deletedAt` quando existe.
+- Se o payload armazenado nao for objeto, o valor volta em `value`.
+
+### Contrato OpenAPI (opcional)
+
+Ao iniciar com `--schema <arquivo>`, o servidor valida:
+
+- Rotas: se a rota nao existir no contrato, retorna `404`.
+- Payload: se o payload nao bater no schema, retorna `400`.
+
+Somente referencias locais (`#/`) sao suportadas no contrato.
+
+### Logs
+
+Com `RUST_LOG=debug`, o servidor registra request e response (headers e body) no log.
+
+## Casos de uso
+
+1. Mock rapido para frontend sem backend real
+
+```bash
+curl -X POST http://localhost:3000/users \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: default' \
+  -d '{"name":"Ana","role":"admin"}'
+
+curl "http://localhost:3000/users?limit=10&offset=0" \
+  -H 'x-workspace-id: default'
+```
+
+2. Multi-tenant com workspace no path
+
+```bash
+curl -X POST http://localhost:3000/workspaces/acme-inc \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"acme-inc"}'
+
+curl -X POST http://localhost:3000/workspaces/acme-inc/orders \
+  -H 'Content-Type: application/json' \
+  -d '{"total": 120.5, "status":"paid"}'
+```
+
+3. Busca e ordenacao em colecoes
+
+```bash
+curl "http://localhost:3000/products?term=shoe&order=asc&by=updated_at&limit=5&offset=0" \
+  -H 'x-workspace-id: default'
+```
+
+4. Upsert com id no path
+
+```bash
+curl -X PUT http://localhost:3000/users/7b3a4b2f-5a7e-4a3f-9f4e-8e6a2b0f8e11 \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: default' \
+  -d '{"name":"Bea"}'
+```
+
+5. Validacao por contrato OpenAPI
+
+```bash
+cargo run -- --port 3000 --sqlite --schema ./schema.json
+```
+
 ## Rotas
 
 ### Workspaces
