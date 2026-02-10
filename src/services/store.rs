@@ -63,8 +63,19 @@ impl Store {
                 .foreign_keys(true)
         };
 
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
+        let pool_options = if path == ":memory:" {
+            // In-memory SQLite is tied to connection lifetime; recycling the
+            // connection would drop all tables and data.
+            SqlitePoolOptions::new()
+                .max_connections(1)
+                .min_connections(1)
+                .idle_timeout(None)
+                .max_lifetime(None)
+        } else {
+            SqlitePoolOptions::new().max_connections(1)
+        };
+
+        let pool = pool_options
             .connect_with(options)
             .await
             .map_err(|err| err.to_string())?;
