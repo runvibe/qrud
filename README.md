@@ -28,6 +28,34 @@ Postgres:
 cargo run -- --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
 ```
 
+## Configuração via variáveis de ambiente
+
+Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o prefixo `QRUD_*`. A CLI tem prioridade sobre as variáveis de ambiente.
+
+- `QRUD_HOST` — Host para bind (default: `0.0.0.0`)
+- `QRUD_PORT` — Porta HTTP (default: `3000`)
+- `QRUD_SQLITE` — Caminho para arquivo SQLite (ou `:memory:`)
+- `QRUD_POSTGRES` — URL de conexão PostgreSQL
+- `QRUD_USE_DEFAULT` — Usa workspace default automático (`true` ou `false`)
+- `QRUD_SCHEMA` — Caminho do arquivo de contrato OpenAPI
+
+Exemplo:
+
+```bash
+export QRUD_HOST=127.0.0.1
+export QRUD_PORT=8080
+export QRUD_SQLITE=./data.db
+export QRUD_USE_DEFAULT=true
+cargo run
+```
+
+Mix de CLI e env (CLI sobrescreve env):
+
+```bash
+export QRUD_PORT=5000
+cargo run -- --port 3000  # usa 3000
+```
+
 ## OpenAPI
 
 ```bash
