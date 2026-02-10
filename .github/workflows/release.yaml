@@ -101,7 +101,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.artifact
-
+          env:
+            APP_NAME: ${{ env.APP_NAME }}
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
