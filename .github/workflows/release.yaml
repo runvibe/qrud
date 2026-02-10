@@ -101,14 +101,13 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.artifact
-          env:
-            APP_NAME: ${{ env.APP_NAME }}
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             TARGETARCH=${{ matrix.arch }}
+            APP_NAME=${{ env.APP_NAME }}
           cache-from: type=gha,scope=${{ env.APP_NAME }}-artifact-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ env.APP_NAME }}-artifact-${{ matrix.arch }}
 
