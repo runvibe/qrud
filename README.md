@@ -28,6 +28,22 @@ Postgres:
 cargo run -- --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
 ```
 
+## Imagem Docker (artifact)
+
+O `Dockerfile.artifact` espera um binario precompilado em `artifacts/<arch>/<app_name>` e usa `APP_NAME` tambem em runtime.
+
+Exemplo para `amd64`:
+
+```bash
+mkdir -p artifacts/amd64
+cp target/debug/qrud artifacts/amd64/qrud
+docker build -f Dockerfile.artifact \
+  --build-arg TARGETARCH=amd64 \
+  --build-arg APP_NAME=qrud \
+  -t qrud:artifact .
+docker run --rm -p 3000:3000 qrud:artifact
+```
+
 ## Configuração via variáveis de ambiente
 
 Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o prefixo `QRUD_*`. A CLI tem prioridade sobre as variáveis de ambiente.

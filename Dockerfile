@@ -12,9 +12,8 @@ WORKDIR /app
 # TARGETARCH is provided by buildx (e.g. amd64, arm64)
 ARG TARGETARCH
 ARG APP_NAME
-ENV APP_NAME=${APP_NAME}
-COPY ./artifacts/${TARGETARCH}/${APP_NAME} /app/${APP_NAME}
+COPY ./target/release/qrud /app/qrud
 
 EXPOSE 3000
 
-CMD ["/bin/sh", "-c", "exec /app/${APP_NAME}"]
+CMD ["/bin/sh", "-c", "exec /app/qrud"]
