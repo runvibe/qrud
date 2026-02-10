@@ -17,6 +17,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  APP_NAME: qrud
 
 jobs:
   build-and-push:
@@ -64,16 +65,16 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target/${{ matrix.target }}
-          key: llmcenter-api-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ env.APP_NAME }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release binary (cross)
         run: |
-          cross build --release --target ${{ matrix.target }} -p llmcenter-api
+          cross build --release --target ${{ matrix.target }} -p ${{ env.APP_NAME }}
 
       - name: Prepare artifact directory
         run: |
-          mkdir -p artifacts/llmcenter-api/${{ matrix.arch }}
-          cp target/${{ matrix.target }}/release/llmcenter-api artifacts/llmcenter-api/${{ matrix.arch }}/llmcenter-api
+          mkdir -p artifacts/${{ env.APP_NAME }}/${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/${{ env.APP_NAME }} artifacts/${{ env.APP_NAME }}/${{ matrix.arch }}/${{ env.APP_NAME }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -83,7 +84,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/llmcenter-api
+            ghcr.io/${{ github.repository_owner }}/${{ env.APP_NAME }}
           tags: |
             type=raw,value=latest-${{ matrix.arch }}
             type=raw,value=${{ github.sha }}-${{ matrix.arch }}
@@ -107,8 +108,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             TARGETARCH=${{ matrix.arch }}
-          cache-from: type=gha,scope=llmcenter-api-artifact-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=llmcenter-api-artifact-${{ matrix.arch }}
+          cache-from: type=gha,scope=${{ env.APP_NAME }}-artifact-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ env.APP_NAME }}-artifact-${{ matrix.arch }}
 
   manifest:
     name: Create multi-arch manifest
@@ -120,7 +121,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/llmcenter-api
+            ghcr.io/${{ github.repository_owner }}/${{ env.APP_NAME }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ github.sha }}
