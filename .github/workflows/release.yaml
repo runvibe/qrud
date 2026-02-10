@@ -73,8 +73,8 @@ jobs:
 
       - name: Prepare artifact directory
         run: |
-          mkdir -p artifacts/${{ env.APP_NAME }}/${{ matrix.arch }}
-          cp target/${{ matrix.target }}/release/${{ env.APP_NAME }} artifacts/${{ env.APP_NAME }}/${{ matrix.arch }}/${{ env.APP_NAME }}
+          mkdir -p artifacts/${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/${{ env.APP_NAME }} artifacts/${{ matrix.arch }}/${{ env.APP_NAME }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
