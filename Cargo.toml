@@ -30,6 +30,7 @@ jsonschema = { version = "0.41.0", default-features = false }
 fancy-regex = "0.17"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tower-http = { version = "0.6.2", features = ["cors"] }
 
 [dev-dependencies]
 tower = { version = "0.5.2", features = ["util"] }

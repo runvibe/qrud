@@ -28,6 +28,16 @@ Postgres:
 cargo run -- --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
 ```
 
+CORS configurado pela CLI:
+
+```bash
+cargo run -- --port 3000 --cors \
+  --cors-origin http://localhost:5173 \
+  --cors-method GET,POST,PUT,PATCH,DELETE,OPTIONS \
+  --cors-header content-type,x-workspace-id \
+  --cors-credentials true
+```
+
 ## Imagem Docker (artifact)
 
 O `Dockerfile.artifact` espera um binario precompilado em `artifacts/<arch>/<app_name>` e usa `APP_NAME` tambem em runtime.
@@ -54,6 +64,11 @@ Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o pr
 - `QRUD_POSTGRES` — URL de conexão PostgreSQL
 - `QRUD_USE_DEFAULT` — Usa workspace default automático (`true` ou `false`)
 - `QRUD_SCHEMA` — Caminho do arquivo de contrato OpenAPI
+- `QRUD_CORS` — Habilita CORS (`true` ou `false`)
+- `QRUD_CORS_ORIGINS` — Lista de origins separados por vírgula (ou `*`)
+- `QRUD_CORS_METHODS` — Lista de métodos separados por vírgula (ou `*`)
+- `QRUD_CORS_HEADERS` — Lista de headers separados por vírgula (ou `*`)
+- `QRUD_CORS_CREDENTIALS` — Habilita `Access-Control-Allow-Credentials` (`true` ou `false`)
 
 Exemplo:
 
@@ -62,6 +77,8 @@ export QRUD_HOST=127.0.0.1
 export QRUD_PORT=8080
 export QRUD_SQLITE=./data.db
 export QRUD_USE_DEFAULT=true
+export QRUD_CORS=true
+export QRUD_CORS_ORIGINS=http://localhost:5173
 cargo run
 ```
 
