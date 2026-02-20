@@ -119,6 +119,29 @@ export QRUD_PORT=5000
 cargo run -- --port 3000  # usa 3000
 ```
 
+### Mapa CLI para env
+
+- `--host` <-> `QRUD_HOST`
+- `--port` <-> `QRUD_PORT`
+- `--sqlite` <-> `QRUD_SQLITE`
+- `--postgres` <-> `QRUD_POSTGRES`
+- `--use-default` <-> `QRUD_USE_DEFAULT`
+- `--schema` <-> `QRUD_SCHEMA`
+- `--cors` <-> `QRUD_CORS`
+- `--cors-allow` <-> `QRUD_CORS_ALLOW`
+- `--cors-origin` <-> `QRUD_CORS_ORIGINS`
+- `--cors-method` <-> `QRUD_CORS_METHODS`
+- `--cors-header` <-> `QRUD_CORS_HEADERS`
+- `--cors-credentials` <-> `QRUD_CORS_CREDENTIALS`
+- `--otel` <-> `QRUD_OTEL`
+- `--otel-endpoint` <-> `QRUD_OTEL_ENDPOINT`
+- `--otel-protocol` <-> `QRUD_OTEL_PROTOCOL`
+- `--otel-service-name` <-> `QRUD_OTEL_SERVICE_NAME`
+- `--otel-service-version` <-> `QRUD_OTEL_SERVICE_VERSION`
+- `--otel-tracer-name` <-> `QRUD_OTEL_TRACER_NAME`
+- `--otel-sampler` <-> `QRUD_OTEL_SAMPLER`
+- `--otel-sampler-arg` <-> `QRUD_OTEL_SAMPLER_ARG`
+
 ## OpenAPI
 
 ```bash
