@@ -1,0 +1,213 @@
+openapi: 3.0.3
+info:
+  title: Example API
+  version: 1.0.0
+  description: Simple OpenAPI 3 example for a Users API.
+servers:
+  - url: https://api.example.com/v1
+paths:
+  /users:
+    get:
+      summary: List users
+      operationId: listUsers
+      parameters:
+        - name: limit
+          in: query
+          description: Max number of users to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: Pagination cursor
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+              examples:
+                example:
+                  value:
+                    items:
+                      - id: "usr_123"
+                        name: "Ana Silva"
+                        email: "ana@example.com"
+                        createdAt: "2026-02-08T12:00:00Z"
+                    nextCursor: null
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Create a user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+            examples:
+              example:
+                value:
+                  name: "Ana Silva"
+                  email: "ana@example.com"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        description: User identifier
+        schema:
+          type: string
+    get:
+      summary: Get a user by id
+      operationId: getUser
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      summary: Update a user
+      operationId: updateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      summary: Delete a user
+      operationId: deleteUser
+      responses:
+        "204":
+          description: Deleted successfully
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, name, email, createdAt]
+      properties:
+        id:
+          type: string
+          example: usr_123
+        name:
+          type: string
+          example: Ana Silva
+        email:
+          type: string
+          format: email
+          example: ana@example.com
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-02-08T12:00:00Z"
+
+    UserCreate:
+      type: object
+      required: [name, email]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+
+    UserList:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor for the next page, if any
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: invalid_request
+        message:
+          type: string
+          example: The request parameters are invalid.
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
