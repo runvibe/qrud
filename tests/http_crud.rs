@@ -934,6 +934,21 @@ async fn openapi_route_available() {
 }
 
 #[tokio::test]
+async fn openapi_route_returns_loaded_contract_when_provided() {
+    let app = build_app_with_openapi_contract().await;
+    let request = Request::builder()
+        .method("GET")
+        .uri("/openapi.json")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, request).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.pointer("/info/title").and_then(|v| v.as_str()), Some("test"));
+    assert!(json.pointer("/paths/~1users").is_some());
+    assert!(json.pointer("/paths/~1workspaces").is_none());
+}
+
+#[tokio::test]
 async fn contract_rejects_unknown_pk_path() {
     let app = build_app_with_openapi_contract().await;
     let workspace_name = create_workspace(&app).await;

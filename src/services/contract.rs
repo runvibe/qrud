@@ -3,6 +3,7 @@ use serde_json::Value;
 
 #[derive(Clone)]
 pub struct ApiContract {
+    spec: Value,
     operations: Vec<OperationContract>,
 }
 
@@ -44,7 +45,14 @@ impl ApiContract {
             }
         }
 
-        Ok(Self { operations })
+        Ok(Self {
+            spec: spec.clone(),
+            operations,
+        })
+    }
+
+    pub fn openapi_spec(&self) -> &Value {
+        &self.spec
     }
 
     pub fn validate_route(&self, method: &str, request_path: &str) -> bool {

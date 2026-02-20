@@ -13,7 +13,65 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use crate::services::AppState;
 
 pub fn router(state: AppState) -> Router {
-    let (router, api) = OpenApiRouter::with_openapi(build_openapi())
+    let (router, api_json) = if let Some(contract) = state.api_contract.as_ref() {
+        (build_plain_router(), contract.openapi_spec().clone())
+    } else {
+        let (router, api) = build_openapi_router().split_for_parts();
+        let api_json = serde_json::to_value(&api).expect("failed to serialize openapi");
+        (router, api_json)
+    };
+
+    let api_json = Arc::new(api_json);
+
+    Router::new()
+        .merge(router)
+        .route(
+            "/openapi.json",
+            get({
+                let api_json = api_json.clone();
+                move || async move { Json(api_json.as_ref().clone()) }
+            }),
+        )
+        .layer(Extension(state))
+        .layer(middleware::from_fn(logging::log_request_response))
+}
+
+fn build_plain_router() -> Router {
+    Router::new()
+        .route(
+            "/workspaces",
+            axum::routing::get(workspaces::list_workspaces)
+                .post(workspaces::create_workspace),
+        )
+        .route(
+            "/workspaces/{workspace}",
+            axum::routing::get(workspaces::get_workspace)
+                .put(workspaces::put_workspace)
+                .patch(workspaces::patch_workspace)
+                .delete(workspaces::delete_workspace),
+        )
+        .route(
+            "/{*pk}",
+            axum::routing::get(documents::get_document_root)
+                .post(documents::create_document_root)
+                .put(documents::put_document_root)
+                .patch(documents::patch_document_root)
+                .delete(documents::delete_document_root),
+        )
+        .route(
+            "/workspaces/{workspace}/{*pk}",
+            axum::routing::get(documents::get_document_workspace)
+                .post(documents::create_document_workspace)
+                .put(documents::put_document_workspace)
+                .patch(documents::patch_document_workspace)
+                .delete(documents::delete_document_workspace),
+        )
+        .route("/health", axum::routing::get(documents::health))
+        .route("/info", axum::routing::get(documents::info))
+}
+
+fn build_openapi_router() -> OpenApiRouter {
+    OpenApiRouter::with_openapi(build_openapi())
         .routes(routes!(workspaces::list_workspaces, workspaces::create_workspace))
         .routes(routes!(
             workspaces::get_workspace,
@@ -37,22 +95,6 @@ pub fn router(state: AppState) -> Router {
         ))
         .routes(routes!(documents::health))
         .routes(routes!(documents::info))
-        .split_for_parts();
-
-    let api_json = serde_json::to_value(&api).expect("failed to serialize openapi");
-    let api_json = Arc::new(api_json);
-
-    Router::new()
-        .merge(router)
-        .route(
-            "/openapi.json",
-            get({
-                let api_json = api_json.clone();
-                move || async move { Json(api_json.as_ref().clone()) }
-            }),
-        )
-        .layer(Extension(state))
-        .layer(middleware::from_fn(logging::log_request_response))
 }
 
 fn build_openapi() -> utoipa::openapi::OpenApi {
