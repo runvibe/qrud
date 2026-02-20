@@ -38,6 +38,8 @@ struct Cli {
     schema: Option<String>,
     #[arg(long, default_value_t = false)]
     cors: bool,
+    #[arg(long, default_value_t = false)]
+    cors_allow: bool,
     #[arg(long = "cors-origin", value_name = "ORIGIN", value_delimiter = ',')]
     cors_origin: Vec<String>,
     #[arg(long = "cors-method", value_name = "METHOD", value_delimiter = ',')]
@@ -57,6 +59,7 @@ struct Options {
     use_default: bool,
     schema: Option<String>,
     cors_enabled: bool,
+    cors_allow_all: bool,
     cors_origins: Vec<String>,
     cors_methods: Vec<String>,
     cors_headers: Vec<String>,
@@ -77,6 +80,9 @@ impl Options {
             .and_then(|v| v.parse().ok());
         let env_schema = std::env::var("QRUD_SCHEMA").ok();
         let env_cors = std::env::var("QRUD_CORS").ok().and_then(|v| v.parse().ok());
+        let env_cors_allow = std::env::var("QRUD_CORS_ALLOW")
+            .ok()
+            .and_then(|v| v.parse().ok());
         let env_cors_credentials = std::env::var("QRUD_CORS_CREDENTIALS")
             .ok()
             .and_then(|v| v.parse().ok());
@@ -112,8 +118,10 @@ impl Options {
             .cors_credentials
             .or(env_cors_credentials)
             .unwrap_or(false);
+        let cors_allow_all = cli.cors_allow || env_cors_allow.unwrap_or(false);
         let cors_enabled = cli.cors
             || env_cors.unwrap_or(false)
+            || cors_allow_all
             || !cors_origins.is_empty()
             || !cors_methods.is_empty()
             || !cors_headers.is_empty()
@@ -130,6 +138,7 @@ impl Options {
             use_default: cli.use_default.or(env_use_default).unwrap_or(false),
             schema: cli.schema.or(env_schema),
             cors_enabled,
+            cors_allow_all,
             cors_origins,
             cors_methods,
             cors_headers,
@@ -157,6 +166,21 @@ fn normalize_list(values: Vec<String>) -> Vec<String> {
 fn build_cors_layer(opts: &Options) -> Result<Option<CorsLayer>, String> {
     if !opts.cors_enabled {
         return Ok(None);
+    }
+
+    if opts.cors_allow_all {
+        if opts.cors_credentials {
+            return Err(
+                "Invalid CORS configuration: --cors-allow cannot be used with credentials"
+                    .to_string(),
+            );
+        }
+        return Ok(Some(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        ));
     }
 
     let mut cors = CorsLayer::new();

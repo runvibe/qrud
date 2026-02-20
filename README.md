@@ -38,6 +38,12 @@ cargo run -- --port 3000 --cors \
   --cors-credentials true
 ```
 
+Liberar todos os CORS:
+
+```bash
+cargo run -- --port 3000 --cors-allow
+```
+
 ## Imagem Docker (artifact)
 
 O `Dockerfile.artifact` espera um binario precompilado em `artifacts/<arch>/<app_name>` e usa `APP_NAME` tambem em runtime.
@@ -65,6 +71,7 @@ Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o pr
 - `QRUD_USE_DEFAULT` — Usa workspace default automático (`true` ou `false`)
 - `QRUD_SCHEMA` — Caminho do arquivo de contrato OpenAPI
 - `QRUD_CORS` — Habilita CORS (`true` ou `false`)
+- `QRUD_CORS_ALLOW` — Libera CORS total (origins, methods, headers com `*`)
 - `QRUD_CORS_ORIGINS` — Lista de origins separados por vírgula (ou `*`)
 - `QRUD_CORS_METHODS` — Lista de métodos separados por vírgula (ou `*`)
 - `QRUD_CORS_HEADERS` — Lista de headers separados por vírgula (ou `*`)
@@ -77,8 +84,7 @@ export QRUD_HOST=127.0.0.1
 export QRUD_PORT=8080
 export QRUD_SQLITE=./data.db
 export QRUD_USE_DEFAULT=true
-export QRUD_CORS=true
-export QRUD_CORS_ORIGINS=http://localhost:5173
+export QRUD_CORS_ALLOW=true
 cargo run
 ```
 
