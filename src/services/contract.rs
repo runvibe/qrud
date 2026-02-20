@@ -1,5 +1,6 @@
 use fancy_regex::Regex;
 use serde_json::Value;
+use std::path::Path;
 
 #[derive(Clone)]
 pub struct ApiContract {
@@ -17,7 +18,7 @@ struct OperationContract {
 impl ApiContract {
     pub fn from_file(path: &str) -> Result<Self, String> {
         let content = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
-        let spec: Value = serde_json::from_str(&content).map_err(|err| err.to_string())?;
+        let spec = parse_openapi_spec(path, &content)?;
         Self::from_spec(&spec)
     }
 
@@ -92,6 +93,36 @@ impl ApiContract {
 
         Ok(())
     }
+}
+
+fn parse_openapi_spec(path: &str, content: &str) -> Result<Value, String> {
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase());
+
+    match extension.as_deref() {
+        Some("json") => serde_json::from_str(content)
+            .map_err(|err| format!("invalid JSON schema file: {err}")),
+        Some("yaml") | Some("yml") => parse_yaml_to_json(content),
+        _ => {
+            match serde_json::from_str(content) {
+                Ok(spec) => Ok(spec),
+                Err(json_err) => match parse_yaml_to_json(content) {
+                    Ok(spec) => Ok(spec),
+                    Err(yaml_err) => Err(format!(
+                        "invalid schema file; JSON error: {json_err}; YAML error: {yaml_err}"
+                    )),
+                },
+            }
+        }
+    }
+}
+
+fn parse_yaml_to_json(content: &str) -> Result<Value, String> {
+    let yaml_value: serde_yaml::Value = serde_yaml::from_str(content)
+        .map_err(|err| format!("invalid YAML schema file: {err}"))?;
+    serde_json::to_value(yaml_value).map_err(|err| format!("invalid YAML schema file: {err}"))
 }
 
 fn extract_request_schema(spec: &Value, operation: &Value) -> Result<Option<Value>, String> {

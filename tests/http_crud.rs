@@ -35,14 +35,15 @@ async fn build_app_with_openapi_contract() -> Router {
     build_app_with_default_and_contract(false, Some(contract)).await
 }
 
-fn write_test_openapi_file() -> PathBuf {
-    let mut path = std::env::temp_dir();
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    path.push(format!("qrud-openapi-{now}.json"));
-    let spec = serde_json::json!({
+async fn build_app_with_openapi_yaml_contract() -> Router {
+    let contract_path = write_test_openapi_yaml_file();
+    let contract = ApiContract::from_file(contract_path.to_str().expect("openapi yaml path"))
+        .expect("load openapi yaml");
+    build_app_with_default_and_contract(false, Some(contract)).await
+}
+
+fn test_openapi_spec() -> JsonValue {
+    serde_json::json!({
         "openapi": "3.0.3",
         "info": { "title": "test", "version": "1.0.0" },
         "paths": {
@@ -98,9 +99,32 @@ fn write_test_openapi_file() -> PathBuf {
                 }
             }
         }
-    });
+    })
+}
+
+fn write_test_openapi_file() -> PathBuf {
+    let mut path = std::env::temp_dir();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    path.push(format!("qrud-openapi-{now}.json"));
+    let spec = test_openapi_spec();
     fs::write(&path, serde_json::to_string(&spec).expect("serialize openapi"))
         .expect("write openapi");
+    path
+}
+
+fn write_test_openapi_yaml_file() -> PathBuf {
+    let mut path = std::env::temp_dir();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    path.push(format!("qrud-openapi-{now}.yaml"));
+    let spec = test_openapi_spec();
+    fs::write(&path, serde_yaml::to_string(&spec).expect("serialize openapi yaml"))
+        .expect("write openapi yaml");
     path
 }
 
@@ -946,6 +970,32 @@ async fn openapi_route_returns_loaded_contract_when_provided() {
     assert_eq!(json.pointer("/info/title").and_then(|v| v.as_str()), Some("test"));
     assert!(json.pointer("/paths/~1users").is_some());
     assert!(json.pointer("/paths/~1workspaces").is_none());
+}
+
+#[tokio::test]
+async fn yaml_contract_file_is_supported() {
+    let app = build_app_with_openapi_yaml_contract().await;
+
+    let openapi = Request::builder()
+        .method("GET")
+        .uri("/openapi.json")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, openapi).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json.pointer("/info/title").and_then(|v| v.as_str()), Some("test"));
+    assert!(json.pointer("/paths/~1users").is_some());
+
+    let workspace_name = create_workspace(&app).await;
+    let request = Request::builder()
+        .method("POST")
+        .uri("/posts")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
