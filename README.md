@@ -44,6 +44,19 @@ Liberar todos os CORS:
 cargo run -- --port 3000 --cors-allow
 ```
 
+OpenTelemetry (desativado por padrao):
+
+```bash
+cargo run -- --port 3000 --otel \
+  --otel-protocol grpc \
+  --otel-endpoint http://localhost:4317 \
+  --otel-service-name qrud \
+  --otel-service-version 0.1.0 \
+  --otel-tracer-name qrud-server \
+  --otel-sampler parentbased_traceidratio \
+  --otel-sampler-arg 0.25
+```
+
 ## Imagem Docker (artifact)
 
 O `Dockerfile.artifact` espera um binario precompilado em `artifacts/<arch>/<app_name>` e usa `APP_NAME` tambem em runtime.
@@ -76,6 +89,14 @@ Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o pr
 - `QRUD_CORS_METHODS` — Lista de métodos separados por vírgula (ou `*`)
 - `QRUD_CORS_HEADERS` — Lista de headers separados por vírgula (ou `*`)
 - `QRUD_CORS_CREDENTIALS` — Habilita `Access-Control-Allow-Credentials` (`true` ou `false`)
+- `QRUD_OTEL` — Habilita OpenTelemetry (`true` ou `false`)
+- `QRUD_OTEL_ENDPOINT` — Endpoint OTLP (ex.: `http://localhost:4317` ou `http://localhost:4318/v1/traces`)
+- `QRUD_OTEL_PROTOCOL` — `grpc` ou `http`
+- `QRUD_OTEL_SERVICE_NAME` — Nome do servico reportado no OTEL
+- `QRUD_OTEL_SERVICE_VERSION` — Versao do servico reportada no OTEL
+- `QRUD_OTEL_TRACER_NAME` — Nome do tracer
+- `QRUD_OTEL_SAMPLER` — `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio`
+- `QRUD_OTEL_SAMPLER_ARG` — argumento numerico do sampler (0.0 a 1.0 para ratio)
 
 Exemplo:
 
@@ -85,6 +106,9 @@ export QRUD_PORT=8080
 export QRUD_SQLITE=./data.db
 export QRUD_USE_DEFAULT=true
 export QRUD_CORS_ALLOW=true
+export QRUD_OTEL=true
+export QRUD_OTEL_PROTOCOL=grpc
+export QRUD_OTEL_ENDPOINT=http://localhost:4317
 cargo run
 ```
 
