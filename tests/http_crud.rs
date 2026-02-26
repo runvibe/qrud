@@ -293,6 +293,57 @@ async fn post_document_ignores_payload_id() {
 }
 
 #[tokio::test]
+async fn document_metadata_object_is_preserved() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"name":"Ana","metadata":{"source":"mobile","flags":{"beta":true},"tags":["x","y"],"score":10}}"#,
+        ))
+        .unwrap();
+
+    let (status, json) = request_json(&app, request).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        json.get("metadata"),
+        Some(&serde_json::json!({
+            "source": "mobile",
+            "flags": { "beta": true },
+            "tags": ["x", "y"],
+            "score": 10
+        }))
+    );
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    let items = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(
+        items[0].get("metadata"),
+        Some(&serde_json::json!({
+            "source": "mobile",
+            "flags": { "beta": true },
+            "tags": ["x", "y"],
+            "score": 10
+        }))
+    );
+}
+
+#[tokio::test]
 async fn put_document_creates_and_updates() {
     let app = build_app().await;
     let workspace_name = create_workspace(&app).await;
