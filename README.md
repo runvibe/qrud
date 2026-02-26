@@ -82,7 +82,7 @@ Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o pr
 - `QRUD_SQLITE` — Caminho para arquivo SQLite (ou `:memory:`)
 - `QRUD_POSTGRES` — URL de conexão PostgreSQL
 - `QRUD_USE_DEFAULT` — Usa workspace default automático (`true` ou `false`)
-- `QRUD_SCHEMA` — Caminho do arquivo de contrato OpenAPI
+- `QRUD_SCHEMA` — Fonte do contrato OpenAPI (`arquivo`, `URL` ou JSON inline)
 - `QRUD_CORS` — Habilita CORS (`true` ou `false`)
 - `QRUD_CORS_ALLOW` — Libera CORS total (origins, methods, headers com `*`)
 - `QRUD_CORS_ORIGINS` — Lista de origins separados por vírgula (ou `*`)
@@ -208,7 +208,7 @@ Todo documento retornado inclui:
 
 ### Contrato OpenAPI (opcional)
 
-Ao iniciar com `--schema <arquivo>`, o servidor valida:
+Ao iniciar com `--schema <fonte>` ou `QRUD_SCHEMA=<fonte>`, o servidor valida:
 
 - Rotas: se a rota nao existir no contrato, retorna `404`.
 - Payload: se o payload nao bater no schema, retorna `400`.
@@ -264,7 +264,14 @@ curl -X PUT http://localhost:3000/users/7b3a4b2f-5a7e-4a3f-9f4e-8e6a2b0f8e11 \
 5. Validacao por contrato OpenAPI
 
 ```bash
+# arquivo local
 cargo run -- --port 3000 --sqlite --schema ./schema.json
+
+# URL remota
+cargo run -- --port 3000 --sqlite --schema https://example.com/openapi.json
+
+# JSON inline
+cargo run -- --port 3000 --sqlite --schema '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}'
 ```
 
 ## Rotas

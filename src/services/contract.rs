@@ -1,6 +1,7 @@
 use fancy_regex::Regex;
 use serde_json::Value;
 use std::path::Path;
+use url::Url;
 
 #[derive(Clone)]
 pub struct ApiContract {
@@ -17,8 +18,49 @@ struct OperationContract {
 
 impl ApiContract {
     pub fn from_file(path: &str) -> Result<Self, String> {
-        let content = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
-        let spec = parse_openapi_spec(path, &content)?;
+        Self::from_source(path)
+    }
+
+    pub fn from_source(source: &str) -> Result<Self, String> {
+        let source = source.trim();
+        if source.is_empty() {
+            return Err("schema source cannot be empty".to_string());
+        }
+
+        if looks_like_inline_schema(source) {
+            let spec = parse_openapi_spec("inline", source)?;
+            return Self::from_spec(&spec);
+        }
+
+        if let Some(url) = parse_http_url(source) {
+            return Self::from_remote_url(&url);
+        }
+
+        let content = std::fs::read_to_string(source).map_err(|err| err.to_string())?;
+        let spec = parse_openapi_spec(source, &content)?;
+        Self::from_spec(&spec)
+    }
+
+    fn from_remote_url(url: &Url) -> Result<Self, String> {
+        let response = reqwest::blocking::get(url.as_str())
+            .map_err(|err| format!("failed to fetch schema from `{url}`: {err}"))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!(
+                "failed to fetch schema from `{url}`: HTTP {}",
+                status
+            ));
+        }
+
+        let content = response
+            .text()
+            .map_err(|err| format!("failed to read schema body from `{url}`: {err}"))?;
+        let source_name = if url.path().is_empty() || url.path() == "/" {
+            url.as_str()
+        } else {
+            url.path()
+        };
+        let spec = parse_openapi_spec(source_name, &content)?;
         Self::from_spec(&spec)
     }
 
@@ -95,6 +137,21 @@ impl ApiContract {
     }
 }
 
+fn parse_http_url(source: &str) -> Option<Url> {
+    let url = Url::parse(source).ok()?;
+    match url.scheme() {
+        "http" | "https" => Some(url),
+        _ => None,
+    }
+}
+
+fn looks_like_inline_schema(source: &str) -> bool {
+    matches!(
+        source.chars().find(|ch| !ch.is_whitespace()),
+        Some('{') | Some('[')
+    )
+}
+
 fn parse_openapi_spec(path: &str, content: &str) -> Result<Value, String> {
     let extension = Path::new(path)
         .extension()
@@ -102,26 +159,25 @@ fn parse_openapi_spec(path: &str, content: &str) -> Result<Value, String> {
         .map(|ext| ext.to_ascii_lowercase());
 
     match extension.as_deref() {
-        Some("json") => serde_json::from_str(content)
-            .map_err(|err| format!("invalid JSON schema file: {err}")),
-        Some("yaml") | Some("yml") => parse_yaml_to_json(content),
-        _ => {
-            match serde_json::from_str(content) {
-                Ok(spec) => Ok(spec),
-                Err(json_err) => match parse_yaml_to_json(content) {
-                    Ok(spec) => Ok(spec),
-                    Err(yaml_err) => Err(format!(
-                        "invalid schema file; JSON error: {json_err}; YAML error: {yaml_err}"
-                    )),
-                },
-            }
+        Some("json") => {
+            serde_json::from_str(content).map_err(|err| format!("invalid JSON schema file: {err}"))
         }
+        Some("yaml") | Some("yml") => parse_yaml_to_json(content),
+        _ => match serde_json::from_str(content) {
+            Ok(spec) => Ok(spec),
+            Err(json_err) => match parse_yaml_to_json(content) {
+                Ok(spec) => Ok(spec),
+                Err(yaml_err) => Err(format!(
+                    "invalid schema file; JSON error: {json_err}; YAML error: {yaml_err}"
+                )),
+            },
+        },
     }
 }
 
 fn parse_yaml_to_json(content: &str) -> Result<Value, String> {
-    let yaml_value: serde_yaml::Value = serde_yaml::from_str(content)
-        .map_err(|err| format!("invalid YAML schema file: {err}"))?;
+    let yaml_value: serde_yaml::Value =
+        serde_yaml::from_str(content).map_err(|err| format!("invalid YAML schema file: {err}"))?;
     serde_json::to_value(yaml_value).map_err(|err| format!("invalid YAML schema file: {err}"))
 }
 
@@ -210,8 +266,8 @@ fn validate_schema_patterns(schema: &Value, payload: &Value) -> Result<(), Strin
 fn validate_schema_patterns_at(schema: &Value, payload: &Value, path: &str) -> Result<(), String> {
     if let Some(pattern) = schema.get("pattern").and_then(Value::as_str) {
         if let Some(value) = payload.as_str() {
-            let regex = Regex::new(pattern)
-                .map_err(|err| format!("Invalid pattern at {path}: {err}"))?;
+            let regex =
+                Regex::new(pattern).map_err(|err| format!("Invalid pattern at {path}: {err}"))?;
             let matches = regex
                 .is_match(value)
                 .map_err(|err| format!("Invalid pattern at {path}: {err}"))?;
@@ -289,8 +345,7 @@ fn validate_schema_patterns_at(schema: &Value, payload: &Value, path: &str) -> R
             match items_schema {
                 Value::Array(schemas) => {
                     for (index, item) in items.iter().enumerate() {
-                        let schema_for_item =
-                            schemas.get(index).or_else(|| schemas.last());
+                        let schema_for_item = schemas.get(index).or_else(|| schemas.last());
                         if let Some(schema_for_item) = schema_for_item {
                             let next_path = format_array_path(path, index);
                             validate_schema_patterns_at(schema_for_item, item, &next_path)?;

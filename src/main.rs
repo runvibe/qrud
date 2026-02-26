@@ -4,8 +4,8 @@ mod services;
 
 use std::net::SocketAddr;
 
-use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use axum::http::{HeaderValue, Method, header::HeaderName};
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use clap::Parser;
 use opentelemetry::KeyValue;
 use opentelemetry::global;
@@ -15,9 +15,9 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::Resource;
 use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
 use tower_http::cors::{Any, CorsLayer};
+use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
 
 use crate::routes::router;
 use crate::services::{ApiContract, AppState, Store};
@@ -46,7 +46,7 @@ struct Cli {
     postgres: Option<String>,
     #[arg(long)]
     use_default: Option<bool>,
-    #[arg(long, value_name = "FILE")]
+    #[arg(long, value_name = "SOURCE")]
     schema: Option<String>,
     #[arg(long, default_value_t = false)]
     cors: bool,
@@ -321,7 +321,9 @@ fn normalize_otel_protocol(value: &str) -> Result<Protocol, String> {
 fn parse_otel_sampler(name: &str, arg: Option<f64>) -> Result<Sampler, String> {
     let normalize_ratio = |value: f64| -> Result<f64, String> {
         if !value.is_finite() || !(0.0..=1.0).contains(&value) {
-            return Err("Invalid OTEL sampler arg. Expected ratio between 0.0 and 1.0.".to_string());
+            return Err(
+                "Invalid OTEL sampler arg. Expected ratio between 0.0 and 1.0.".to_string(),
+            );
         }
         Ok(value)
     };
@@ -432,7 +434,7 @@ async fn main() {
         .as_deref()
         .map(ApiContract::from_file)
         .transpose()
-        .expect("failed to load schema file");
+        .expect("failed to load schema source");
 
     let state = AppState::new(store, opts.use_default, api_contract);
 
@@ -453,7 +455,11 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("failed to bind address");
-    let server_result = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await;
+    let server_result = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await;
     if let Some(provider) = tracer_provider {
         let _ = provider.shutdown();
     }

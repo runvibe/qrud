@@ -1,11 +1,13 @@
-use axum::body::{to_bytes, Body};
-use axum::http::{HeaderValue, Request, StatusCode};
 use axum::Router;
+use axum::body::{Body, to_bytes};
+use axum::http::{HeaderValue, Request, StatusCode};
 use serde_json::Value as JsonValue;
 use std::fs;
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -20,7 +22,10 @@ async fn build_app_with_default(use_default: bool) -> Router {
     build_app_with_default_and_contract(use_default, None).await
 }
 
-async fn build_app_with_default_and_contract(use_default: bool, api_contract: Option<ApiContract>) -> Router {
+async fn build_app_with_default_and_contract(
+    use_default: bool,
+    api_contract: Option<ApiContract>,
+) -> Router {
     let store = Store::open_sqlite(":memory:")
         .await
         .expect("failed to open db");
@@ -110,8 +115,11 @@ fn write_test_openapi_file() -> PathBuf {
         .as_nanos();
     path.push(format!("qrud-openapi-{now}.json"));
     let spec = test_openapi_spec();
-    fs::write(&path, serde_json::to_string(&spec).expect("serialize openapi"))
-        .expect("write openapi");
+    fs::write(
+        &path,
+        serde_json::to_string(&spec).expect("serialize openapi"),
+    )
+    .expect("write openapi");
     path
 }
 
@@ -123,9 +131,36 @@ fn write_test_openapi_yaml_file() -> PathBuf {
         .as_nanos();
     path.push(format!("qrud-openapi-{now}.yaml"));
     let spec = test_openapi_spec();
-    fs::write(&path, serde_yaml::to_string(&spec).expect("serialize openapi yaml"))
-        .expect("write openapi yaml");
+    fs::write(
+        &path,
+        serde_yaml::to_string(&spec).expect("serialize openapi yaml"),
+    )
+    .expect("write openapi yaml");
     path
+}
+
+fn start_http_server_once(body: String, content_type: &str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test http server");
+    let addr = listener.local_addr().expect("local addr");
+    let content_type = content_type.to_string();
+
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept");
+        let mut req_buf = [0_u8; 4096];
+        let _ = stream.read(&mut req_buf);
+
+        let response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("write response");
+        let _ = stream.shutdown(Shutdown::Both);
+    });
+
+    format!("http://{addr}/openapi.json")
 }
 
 async fn request_json(app: &Router, request: Request<Body>) -> (StatusCode, JsonValue) {
@@ -388,7 +423,11 @@ async fn patch_document_merges_fields() {
         .body(Body::from(r#"{"name":"Car","description":"Base"}"#))
         .unwrap();
     let (_, created) = request_json(&app, create).await;
-    let id = created.get("$id").and_then(|v| v.as_str()).unwrap().to_string();
+    let id = created
+        .get("$id")
+        .and_then(|v| v.as_str())
+        .unwrap()
+        .to_string();
 
     let patch = Request::builder()
         .method("PATCH")
@@ -477,10 +516,7 @@ async fn header_workspace_routes_work() {
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
-    assert_eq!(
-        array[0].get("name").and_then(|v| v.as_str()),
-        Some("Ana")
-    );
+    assert_eq!(array[0].get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -515,10 +551,7 @@ async fn root_document_routes_work() {
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
-    assert_eq!(
-        array[0].get("title").and_then(|v| v.as_str()),
-        Some("Oi")
-    );
+    assert_eq!(array[0].get("title").and_then(|v| v.as_str()), Some("Oi"));
 }
 
 #[tokio::test]
@@ -551,10 +584,7 @@ async fn workspace_document_routes_work() {
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
-    assert_eq!(
-        array[0].get("title").and_then(|v| v.as_str()),
-        Some("Oi")
-    );
+    assert_eq!(array[0].get("title").and_then(|v| v.as_str()), Some("Oi"));
 }
 
 #[tokio::test]
@@ -600,7 +630,6 @@ async fn reserved_pk_returns_400() {
         .unwrap();
     let status = request_status(&app, request).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-
 }
 
 #[tokio::test]
@@ -687,10 +716,7 @@ async fn get_document_success() {
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
-    assert_eq!(
-        array[0].get("name").and_then(|v| v.as_str()),
-        Some("Ana")
-    );
+    assert_eq!(array[0].get("name").and_then(|v| v.as_str()), Some("Ana"));
 }
 
 #[tokio::test]
@@ -869,10 +895,7 @@ async fn pk_list_order_param_sorts_created_at() {
         .get("items")
         .and_then(|value| value.as_array())
         .expect("document items");
-    assert_eq!(
-        items[0].get("name").and_then(|v| v.as_str()),
-        Some("First")
-    );
+    assert_eq!(items[0].get("name").and_then(|v| v.as_str()), Some("First"));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("asc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
 
@@ -955,7 +978,11 @@ async fn header_document_put_patch_delete() {
         .unwrap();
     let (status, json) = request_json(&app, put).await;
     assert_eq!(status, StatusCode::CREATED);
-    let id = json.get("$id").and_then(|v| v.as_str()).unwrap().to_string();
+    let id = json
+        .get("$id")
+        .and_then(|v| v.as_str())
+        .unwrap()
+        .to_string();
 
     let patch = Request::builder()
         .method("PATCH")
@@ -985,10 +1012,7 @@ async fn header_workspace_invalid_value_returns_400() {
     let mut builder = Request::builder();
     builder = builder.method("GET").uri("/users");
     let request = builder
-        .header(
-            "x-workspace-id",
-            HeaderValue::from_bytes(b"\xFF").unwrap(),
-        )
+        .header("x-workspace-id", HeaderValue::from_bytes(b"\xFF").unwrap())
         .body(Body::empty())
         .unwrap();
     let status = request_status(&app, request).await;
@@ -1018,7 +1042,10 @@ async fn openapi_route_returns_loaded_contract_when_provided() {
         .unwrap();
     let (status, json) = request_json(&app, request).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.pointer("/info/title").and_then(|v| v.as_str()), Some("test"));
+    assert_eq!(
+        json.pointer("/info/title").and_then(|v| v.as_str()),
+        Some("test")
+    );
     assert!(json.pointer("/paths/~1users").is_some());
     assert!(json.pointer("/paths/~1workspaces").is_none());
 }
@@ -1034,7 +1061,10 @@ async fn yaml_contract_file_is_supported() {
         .unwrap();
     let (status, json) = request_json(&app, openapi).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(json.pointer("/info/title").and_then(|v| v.as_str()), Some("test"));
+    assert_eq!(
+        json.pointer("/info/title").and_then(|v| v.as_str()),
+        Some("test")
+    );
     assert!(json.pointer("/paths/~1users").is_some());
 
     let workspace_name = create_workspace(&app).await;
@@ -1047,6 +1077,27 @@ async fn yaml_contract_file_is_supported() {
         .unwrap();
     let status = request_status(&app, request).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[test]
+fn contract_source_accepts_inline_json() {
+    let spec = test_openapi_spec();
+    let inline_json = serde_json::to_string(&spec).expect("serialize openapi inline");
+
+    let contract = ApiContract::from_source(&inline_json).expect("load inline schema");
+    assert!(contract.validate_route("get", "/users"));
+    assert!(contract.validate_route("post", "/users"));
+}
+
+#[test]
+fn contract_source_accepts_http_url() {
+    let spec = test_openapi_spec();
+    let body = serde_json::to_string(&spec).expect("serialize openapi body");
+    let url = start_http_server_once(body, "application/json");
+
+    let contract = ApiContract::from_source(&url).expect("load schema from url");
+    assert!(contract.validate_route("get", "/users/123"));
+    assert!(contract.validate_route("patch", "/users/123"));
 }
 
 #[tokio::test]
@@ -1158,7 +1209,10 @@ async fn health_and_info_routes() {
     let (status, json) = request_json(&app, info).await;
     assert_eq!(status, StatusCode::OK);
     let database = json.get("database").expect("database info");
-    assert_eq!(database.get("drive").and_then(|v| v.as_str()), Some("sqlite"));
+    assert_eq!(
+        database.get("drive").and_then(|v| v.as_str()),
+        Some("sqlite")
+    );
     assert_eq!(
         database
             .get("sqlite")
