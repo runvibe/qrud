@@ -1,6 +1,7 @@
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{HeaderValue, Request, StatusCode};
+use base64::Engine;
 use serde_json::Value as JsonValue;
 use std::fs;
 use std::io::{Read, Write};
@@ -1098,6 +1099,17 @@ fn contract_source_accepts_http_url() {
     let contract = ApiContract::from_source(&url).expect("load schema from url");
     assert!(contract.validate_route("get", "/users/123"));
     assert!(contract.validate_route("patch", "/users/123"));
+}
+
+#[test]
+fn contract_source_accepts_base64_json() {
+    let spec = test_openapi_spec();
+    let inline_json = serde_json::to_string(&spec).expect("serialize openapi inline");
+    let encoded = base64::engine::general_purpose::STANDARD.encode(inline_json);
+
+    let contract = ApiContract::from_source(&encoded).expect("load schema from base64");
+    assert!(contract.validate_route("get", "/users"));
+    assert!(contract.validate_route("put", "/users/123"));
 }
 
 #[tokio::test]

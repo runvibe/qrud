@@ -1,3 +1,4 @@
+use base64::Engine;
 use fancy_regex::Regex;
 use serde_json::Value;
 use std::path::Path;
@@ -28,17 +29,46 @@ impl ApiContract {
         }
 
         if looks_like_inline_schema(source) {
-            let spec = parse_openapi_spec("inline", source)?;
-            return Self::from_spec(&spec);
+            return Self::from_schema_text("inline", source).or_else(|inline_err| {
+                let decoded = decode_base64_utf8(source).map_err(|decode_err| {
+                    format!(
+                        "failed to load schema source from inline content: inline parse failed: {inline_err}; base64 decode failed: {decode_err}"
+                    )
+                })?;
+                Self::from_schema_text("inline.base64", &decoded).map_err(|base64_err| {
+                    format!(
+                        "failed to load schema source from inline content: inline parse failed: {inline_err}; base64 parse failed: {base64_err}"
+                    )
+                })
+            });
         }
 
         if let Some(url) = parse_http_url(source) {
             return Self::from_remote_url(&url);
         }
 
-        let content = std::fs::read_to_string(source).map_err(|err| err.to_string())?;
-        let spec = parse_openapi_spec(source, &content)?;
-        Self::from_spec(&spec)
+        match std::fs::read_to_string(source) {
+            Ok(content) => Self::from_schema_text(source, &content),
+            Err(file_err) => {
+                let inline_result = Self::from_schema_text("inline", source);
+                if let Ok(contract) = inline_result {
+                    return Ok(contract);
+                }
+                let inline_err = inline_result.err().expect("inline result checked");
+
+                let decoded = decode_base64_utf8(source).map_err(|decode_err| {
+                    format!(
+                        "failed to load schema source: file read failed for `{source}`: {file_err}; inline parse failed: {inline_err}; base64 decode failed: {decode_err}"
+                    )
+                })?;
+
+                Self::from_schema_text("inline.base64", &decoded).map_err(|base64_err| {
+                    format!(
+                        "failed to load schema source: file read failed for `{source}`: {file_err}; inline parse failed: {inline_err}; base64 parse failed: {base64_err}"
+                    )
+                })
+            }
+        }
     }
 
     fn from_remote_url(url: &Url) -> Result<Self, String> {
@@ -60,7 +90,11 @@ impl ApiContract {
         } else {
             url.path()
         };
-        let spec = parse_openapi_spec(source_name, &content)?;
+        Self::from_schema_text(source_name, &content)
+    }
+
+    fn from_schema_text(source_name: &str, content: &str) -> Result<Self, String> {
+        let spec = parse_openapi_spec(source_name, content)?;
         Self::from_spec(&spec)
     }
 
@@ -150,6 +184,15 @@ fn looks_like_inline_schema(source: &str) -> bool {
         source.chars().find(|ch| !ch.is_whitespace()),
         Some('{') | Some('[')
     )
+}
+
+fn decode_base64_utf8(source: &str) -> Result<String, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(source)
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(source))
+        .map_err(|err| err.to_string())?;
+
+    String::from_utf8(bytes).map_err(|err| err.to_string())
 }
 
 fn parse_openapi_spec(path: &str, content: &str) -> Result<Value, String> {

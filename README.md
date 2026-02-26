@@ -82,7 +82,7 @@ Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o pr
 - `QRUD_SQLITE` — Caminho para arquivo SQLite (ou `:memory:`)
 - `QRUD_POSTGRES` — URL de conexão PostgreSQL
 - `QRUD_USE_DEFAULT` — Usa workspace default automático (`true` ou `false`)
-- `QRUD_SCHEMA` — Fonte do contrato OpenAPI (`arquivo`, `URL` ou JSON inline)
+- `QRUD_SCHEMA` — Fonte do contrato OpenAPI (`arquivo`, `URL`, JSON/YAML inline ou Base64)
 - `QRUD_CORS` — Habilita CORS (`true` ou `false`)
 - `QRUD_CORS_ALLOW` — Libera CORS total (origins, methods, headers com `*`)
 - `QRUD_CORS_ORIGINS` — Lista de origins separados por vírgula (ou `*`)
@@ -272,6 +272,10 @@ cargo run -- --port 3000 --sqlite --schema https://example.com/openapi.json
 
 # JSON inline
 cargo run -- --port 3000 --sqlite --schema '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}'
+
+# Base64 (conteudo JSON/YAML codificado)
+SCHEMA_B64=$(printf '%s' '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}' | base64)
+cargo run -- --port 3000 --sqlite --schema "$SCHEMA_B64"
 ```
 
 ## Rotas
