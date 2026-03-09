@@ -1,10 +1,10 @@
+use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value as JsonValue};
-use time::format_description::well_known::Rfc3339;
+use serde_json::{Value as JsonValue, json};
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::models::{Document, Workspace, WorkspaceOutput};
@@ -57,7 +57,7 @@ pub(crate) fn validate_contract_route(
     method: &str,
     selector: &DocumentSelector,
 ) -> Result<(), Response> {
-    let Some(contract) = state.api_contract.as_ref() else {
+    let Some(contract) = state.api_contract() else {
         return Ok(());
     };
 
@@ -77,7 +77,7 @@ pub(crate) fn validate_contract_payload(
     selector: &DocumentSelector,
     payload: &JsonValue,
 ) -> Result<(), Response> {
-    let Some(contract) = state.api_contract.as_ref() else {
+    let Some(contract) = state.api_contract() else {
         return Ok(());
     };
 

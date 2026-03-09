@@ -98,6 +98,10 @@ impl ApiContract {
         Self::from_spec(&spec)
     }
 
+    pub fn from_value(spec: &Value) -> Result<Self, String> {
+        Self::from_spec(spec)
+    }
+
     fn from_spec(spec: &Value) -> Result<Self, String> {
         let mut operations = Vec::new();
         let paths = spec

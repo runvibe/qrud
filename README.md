@@ -148,6 +148,16 @@ cargo run -- --port 3000  # usa 3000
 curl http://localhost:3000/openapi.json
 ```
 
+Carregar ou remover um contrato em runtime:
+
+```bash
+curl -X PUT http://localhost:3000/openapi/contract \
+  -H 'Content-Type: application/json' \
+  --data-binary @schema.json
+
+curl -X DELETE http://localhost:3000/openapi/contract
+```
+
 ## Documentacao detalhada
 
 ### Conceitos
@@ -212,6 +222,9 @@ Ao iniciar com `--schema <fonte>` ou `QRUD_SCHEMA=<fonte>`, o servidor valida:
 
 - Rotas: se a rota nao existir no contrato, retorna `404`.
 - Payload: se o payload nao bater no schema, retorna `400`.
+
+Tambem e possivel carregar ou substituir o contrato em runtime com `PUT /openapi/contract`
+enviando o JSON da especificacao no body. `DELETE /openapi/contract` remove o contrato atual.
 
 Somente referencias locais (`#/`) sao suportadas no contrato.
 

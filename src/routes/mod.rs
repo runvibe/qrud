@@ -1,27 +1,22 @@
 mod common;
 mod documents;
 mod logging;
+mod openapi;
 mod workspaces;
 
 use std::sync::Arc;
 
 use axum::routing::get;
-use axum::{middleware, Extension, Json, Router};
+use axum::{Extension, Json, Router, middleware};
 use utoipa::openapi::{ContactBuilder, InfoBuilder, LicenseBuilder, OpenApiBuilder, Paths};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::services::AppState;
 
 pub fn router(state: AppState) -> Router {
-    let (router, api_json) = if let Some(contract) = state.api_contract.as_ref() {
-        (build_plain_router(), contract.openapi_spec().clone())
-    } else {
-        let (router, api) = build_openapi_router().split_for_parts();
-        let api_json = serde_json::to_value(&api).expect("failed to serialize openapi");
-        (router, api_json)
-    };
-
-    let api_json = Arc::new(api_json);
+    let (router, api) = build_openapi_router().split_for_parts();
+    let api_json = Arc::new(serde_json::to_value(&api).expect("failed to serialize openapi"));
+    let openapi_state = state.clone();
 
     Router::new()
         .merge(router)
@@ -29,50 +24,29 @@ pub fn router(state: AppState) -> Router {
             "/openapi.json",
             get({
                 let api_json = api_json.clone();
-                move || async move { Json(api_json.as_ref().clone()) }
+                move || {
+                    let api_json = api_json.clone();
+                    let state = openapi_state.clone();
+                    async move {
+                        let body = state
+                            .api_contract()
+                            .map(|contract| contract.openapi_spec().clone())
+                            .unwrap_or_else(|| api_json.as_ref().clone());
+                        Json(body)
+                    }
+                }
             }),
         )
         .layer(Extension(state))
         .layer(middleware::from_fn(logging::log_request_response))
 }
 
-fn build_plain_router() -> Router {
-    Router::new()
-        .route(
-            "/workspaces",
-            axum::routing::get(workspaces::list_workspaces)
-                .post(workspaces::create_workspace),
-        )
-        .route(
-            "/workspaces/{workspace}",
-            axum::routing::get(workspaces::get_workspace)
-                .put(workspaces::put_workspace)
-                .patch(workspaces::patch_workspace)
-                .delete(workspaces::delete_workspace),
-        )
-        .route(
-            "/{*pk}",
-            axum::routing::get(documents::get_document_root)
-                .post(documents::create_document_root)
-                .put(documents::put_document_root)
-                .patch(documents::patch_document_root)
-                .delete(documents::delete_document_root),
-        )
-        .route(
-            "/workspaces/{workspace}/{*pk}",
-            axum::routing::get(documents::get_document_workspace)
-                .post(documents::create_document_workspace)
-                .put(documents::put_document_workspace)
-                .patch(documents::patch_document_workspace)
-                .delete(documents::delete_document_workspace),
-        )
-        .route("/health", axum::routing::get(documents::health))
-        .route("/info", axum::routing::get(documents::info))
-}
-
 fn build_openapi_router() -> OpenApiRouter {
     OpenApiRouter::with_openapi(build_openapi())
-        .routes(routes!(workspaces::list_workspaces, workspaces::create_workspace))
+        .routes(routes!(
+            workspaces::list_workspaces,
+            workspaces::create_workspace
+        ))
         .routes(routes!(
             workspaces::get_workspace,
             workspaces::put_workspace,
@@ -93,6 +67,7 @@ fn build_openapi_router() -> OpenApiRouter {
             documents::patch_document_workspace,
             documents::delete_document_workspace
         ))
+        .routes(routes!(openapi::put_contract, openapi::delete_contract))
         .routes(routes!(documents::health))
         .routes(routes!(documents::info))
 }
@@ -118,10 +93,7 @@ fn build_openapi() -> utoipa::openapi::OpenApi {
         ))
         .build();
 
-    OpenApiBuilder::new()
-        .info(info)
-        .paths(Paths::new())
-        .build()
+    OpenApiBuilder::new().info(info).paths(Paths::new()).build()
 }
 
 fn cargo_contact() -> Option<utoipa::openapi::Contact> {
@@ -130,20 +102,11 @@ fn cargo_contact() -> Option<utoipa::openapi::Contact> {
         return None;
     }
 
-    Some(
-        ContactBuilder::new()
-            .name(name)
-            .email(email)
-            .build(),
-    )
+    Some(ContactBuilder::new().name(name).email(email).build())
 }
 
 fn parse_author(authors: &str) -> (Option<String>, Option<String>) {
-    let first = authors
-        .split(':')
-        .next()
-        .unwrap_or_default()
-        .trim();
+    let first = authors.split(':').next().unwrap_or_default().trim();
     if first.is_empty() {
         return (None, None);
     }

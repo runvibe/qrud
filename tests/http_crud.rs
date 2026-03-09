@@ -1197,6 +1197,83 @@ async fn contract_validates_request_payload() {
 }
 
 #[tokio::test]
+async fn contract_can_be_loaded_via_http_endpoint() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let load_request = Request::builder()
+        .method("PUT")
+        .uri("/openapi/contract")
+        .header("content-type", "application/json")
+        .body(Body::from(test_openapi_spec().to_string()))
+        .unwrap();
+    let status = request_status(&app, load_request).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/posts")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/users")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"label":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn contract_can_be_removed_via_http_endpoint() {
+    let app = build_app_with_openapi_contract().await;
+    let workspace_name = create_workspace(&app).await;
+
+    let delete_request = Request::builder()
+        .method("DELETE")
+        .uri("/openapi/contract")
+        .body(Body::empty())
+        .unwrap();
+    let status = request_status(&app, delete_request).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/posts")
+        .header("x-workspace-id", &workspace_name)
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Ana"}"#))
+        .unwrap();
+    let status = request_status(&app, request).await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn contract_endpoint_rejects_invalid_spec() {
+    let app = build_app().await;
+
+    let request = Request::builder()
+        .method("PUT")
+        .uri("/openapi/contract")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"openapi":"3.0.3"}"#))
+        .unwrap();
+    let (status, json) = request_json(&app, request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        json.get("error").and_then(|value| value.as_str()),
+        Some("OpenAPI spec must contain paths")
+    );
+}
+
+#[tokio::test]
 async fn health_and_info_routes() {
     let app = build_app().await;
 
