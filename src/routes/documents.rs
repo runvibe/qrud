@@ -1,13 +1,13 @@
+use axum::Json;
 use axum::extract::{Extension, Path, Query};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
-use serde_json::{json, Value as JsonValue};
+use serde_json::{Value as JsonValue, json};
 
 use crate::models::{AnyJson, DocumentOutput};
 use crate::routes::common::{
-    document_to_output, ensure_workspace, json_error, parse_document_selector,
-    validate_contract_payload, validate_contract_route, workspace_from_header, ListParams,
+    ListParams, document_to_output, ensure_workspace, json_error, parse_document_selector,
+    validate_contract_payload, validate_contract_route, workspace_from_header,
 };
 use crate::services::AppState;
 
@@ -16,13 +16,13 @@ use crate::services::AppState;
     path = "/workspaces/{workspace}/{*pk}",
     request_body = AnyJson,
     params(
-        ("workspace" = String, Path, description = "Nome do workspace"),
-        ("pk" = String, Path, description = "Path key do documento")
+        ("workspace" = String, Path, description = "Workspace name"),
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 201, body = DocumentOutput, description = "Documento criado"),
-        (status = 404, description = "Workspace nao encontrado"),
-        (status = 409, description = "Documento ja existe")
+        (status = 201, body = DocumentOutput, description = "Document created"),
+        (status = 404, description = "Workspace not found"),
+        (status = 409, description = "Document already exists")
     )
 )]
 pub(crate) async fn create_document_workspace(
@@ -37,12 +37,12 @@ pub(crate) async fn create_document_workspace(
     get,
     path = "/workspaces/{workspace}/{*pk}",
     params(
-        ("workspace" = String, Path, description = "Nome do workspace"),
-        ("pk" = String, Path, description = "Path key do documento")
+        ("workspace" = String, Path, description = "Workspace name"),
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 200, body = [DocumentOutput], description = "Documento encontrado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = [DocumentOutput], description = "Document found"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn get_document_workspace(
@@ -58,13 +58,13 @@ pub(crate) async fn get_document_workspace(
     path = "/workspaces/{workspace}/{*pk}",
     request_body = AnyJson,
     params(
-        ("workspace" = String, Path, description = "Nome do workspace"),
-        ("pk" = String, Path, description = "Path key do documento")
+        ("workspace" = String, Path, description = "Workspace name"),
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
-        (status = 201, body = DocumentOutput, description = "Documento criado"),
-        (status = 404, description = "Workspace nao encontrado")
+        (status = 200, body = DocumentOutput, description = "Document updated"),
+        (status = 201, body = DocumentOutput, description = "Document created"),
+        (status = 404, description = "Workspace not found")
     )
 )]
 pub(crate) async fn put_document_workspace(
@@ -80,12 +80,12 @@ pub(crate) async fn put_document_workspace(
     path = "/workspaces/{workspace}/{*pk}",
     request_body = AnyJson,
     params(
-        ("workspace" = String, Path, description = "Nome do workspace"),
-        ("pk" = String, Path, description = "Path key do documento")
+        ("workspace" = String, Path, description = "Workspace name"),
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = DocumentOutput, description = "Document updated"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn patch_document_workspace(
@@ -100,12 +100,12 @@ pub(crate) async fn patch_document_workspace(
     delete,
     path = "/workspaces/{workspace}/{*pk}",
     params(
-        ("workspace" = String, Path, description = "Nome do workspace"),
-        ("pk" = String, Path, description = "Path key do documento")
+        ("workspace" = String, Path, description = "Workspace name"),
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 204, description = "Removido"),
-        (status = 404, description = "Nao encontrado")
+        (status = 204, description = "Removed"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn delete_document_workspace(
@@ -120,13 +120,13 @@ pub(crate) async fn delete_document_workspace(
     path = "/{*pk}",
     request_body = AnyJson,
     params(
-        ("pk" = String, Path, description = "Path key do documento")
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 201, body = DocumentOutput, description = "Documento criado"),
-        (status = 400, description = "Workspace nao informado"),
-        (status = 404, description = "Workspace nao encontrado"),
-        (status = 409, description = "Documento ja existe")
+        (status = 201, body = DocumentOutput, description = "Document created"),
+        (status = 400, description = "Workspace not provided"),
+        (status = 404, description = "Workspace not found"),
+        (status = 409, description = "Document already exists")
     )
 )]
 pub(crate) async fn create_document_root(
@@ -146,12 +146,12 @@ pub(crate) async fn create_document_root(
     get,
     path = "/{*pk}",
     params(
-        ("pk" = String, Path, description = "Path key do documento")
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 200, body = DocumentOutput, description = "Documento encontrado"),
-        (status = 400, description = "Workspace nao informado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = DocumentOutput, description = "Document found"),
+        (status = 400, description = "Workspace not provided"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn get_document_root(
@@ -172,13 +172,13 @@ pub(crate) async fn get_document_root(
     path = "/{*pk}",
     request_body = AnyJson,
     params(
-        ("pk" = String, Path, description = "Path key do documento")
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
-        (status = 201, body = DocumentOutput, description = "Documento criado"),
-        (status = 400, description = "Workspace nao informado"),
-        (status = 404, description = "Workspace nao encontrado")
+        (status = 200, body = DocumentOutput, description = "Document updated"),
+        (status = 201, body = DocumentOutput, description = "Document created"),
+        (status = 400, description = "Workspace not provided"),
+        (status = 404, description = "Workspace not found")
     )
 )]
 pub(crate) async fn put_document_root(
@@ -199,12 +199,12 @@ pub(crate) async fn put_document_root(
     path = "/{*pk}",
     request_body = AnyJson,
     params(
-        ("pk" = String, Path, description = "Path key do documento")
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 200, body = DocumentOutput, description = "Documento atualizado"),
-        (status = 400, description = "Workspace nao informado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = DocumentOutput, description = "Document updated"),
+        (status = 400, description = "Workspace not provided"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn patch_document_root(
@@ -224,12 +224,12 @@ pub(crate) async fn patch_document_root(
     delete,
     path = "/{*pk}",
     params(
-        ("pk" = String, Path, description = "Path key do documento")
+        ("pk" = String, Path, description = "Document path key")
     ),
     responses(
-        (status = 204, description = "Removido"),
-        (status = 400, description = "Workspace nao informado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 204, description = "Removed"),
+        (status = 400, description = "Workspace not provided"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn delete_document_root(
@@ -259,7 +259,7 @@ pub(crate) async fn health() -> Response {
     get,
     path = "/info",
     responses(
-        (status = 200, description = "Informacoes de integracao")
+        (status = 200, description = "Integration information")
     )
 )]
 pub(crate) async fn info(Extension(state): Extension<AppState>) -> Response {
@@ -302,9 +302,7 @@ async fn document_create(
         .create_document(&workspace_data.id, &selector.pk, &payload)
         .await
     {
-        Ok(document) => {
-            (StatusCode::CREATED, Json(document_to_output(document))).into_response()
-        }
+        Ok(document) => (StatusCode::CREATED, Json(document_to_output(document))).into_response(),
         Err(message) if message == "Document already exists" => {
             json_error(StatusCode::CONFLICT, &message)
         }
@@ -331,7 +329,11 @@ async fn document_get(
     };
 
     if let Some(id) = selector.id.as_deref() {
-        return match state.store.fetch_document_by_id(&workspace_data.id, id).await {
+        return match state
+            .store
+            .fetch_document_by_id(&workspace_data.id, id)
+            .await
+        {
             Ok(Some(doc)) => (StatusCode::OK, Json(document_to_output(doc))).into_response(),
             Ok(None) => json_error(StatusCode::NOT_FOUND, "Document not found"),
             Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
@@ -482,9 +484,15 @@ async fn document_patch(
     }
 
     let existing_result = if let Some(id) = selector.id.as_deref() {
-        state.store.fetch_document_by_id(&workspace_data.id, id).await
+        state
+            .store
+            .fetch_document_by_id(&workspace_data.id, id)
+            .await
     } else {
-        state.store.fetch_document(&workspace_data.id, &selector.pk).await
+        state
+            .store
+            .fetch_document(&workspace_data.id, &selector.pk)
+            .await
     };
 
     let mut existing = match existing_result {

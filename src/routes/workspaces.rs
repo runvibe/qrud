@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 
 use crate::models::{WorkspaceInput, WorkspaceOutput, WorkspacePatch};
 use crate::routes::common::{is_dash_case, json_error, workspace_to_output};
@@ -12,7 +12,7 @@ use crate::services::AppState;
     path = "/workspaces",
     request_body = WorkspaceInput,
     responses(
-        (status = 201, body = WorkspaceOutput, description = "Workspace criado")
+        (status = 201, body = WorkspaceOutput, description = "Workspace created")
     )
 )]
 pub(crate) async fn create_workspace(
@@ -31,7 +31,9 @@ pub(crate) async fn create_workspace(
         .create_workspace(name, payload.description.as_deref())
         .await
     {
-        Ok(workspace) => (StatusCode::CREATED, Json(workspace_to_output(workspace))).into_response(),
+        Ok(workspace) => {
+            (StatusCode::CREATED, Json(workspace_to_output(workspace))).into_response()
+        }
         Err(message) if message == "Workspace already exists" => {
             json_error(StatusCode::CONFLICT, &message)
         }
@@ -43,7 +45,7 @@ pub(crate) async fn create_workspace(
     get,
     path = "/workspaces",
     responses(
-        (status = 200, body = [WorkspaceOutput], description = "Lista de workspaces")
+        (status = 200, body = [WorkspaceOutput], description = "Workspace list")
     )
 )]
 pub(crate) async fn list_workspaces(Extension(state): Extension<AppState>) -> Response {
@@ -63,11 +65,11 @@ pub(crate) async fn list_workspaces(Extension(state): Extension<AppState>) -> Re
     get,
     path = "/workspaces/{workspace}",
     params(
-        ("workspace" = String, Path, description = "Nome do workspace")
+        ("workspace" = String, Path, description = "Workspace name")
     ),
     responses(
-        (status = 200, body = WorkspaceOutput, description = "Workspace encontrado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = WorkspaceOutput, description = "Workspace found"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn get_workspace(
@@ -78,7 +80,9 @@ pub(crate) async fn get_workspace(
         return json_error(StatusCode::BAD_REQUEST, "Workspace name must be dash-case");
     }
     match state.store.fetch_workspace_by_name(&workspace).await {
-        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace_to_output(workspace))).into_response(),
+        Ok(Some(workspace)) => {
+            (StatusCode::OK, Json(workspace_to_output(workspace))).into_response()
+        }
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Workspace not found"),
         Err(message) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
     }
@@ -89,11 +93,11 @@ pub(crate) async fn get_workspace(
     path = "/workspaces/{workspace}",
     request_body = WorkspaceInput,
     params(
-        ("workspace" = String, Path, description = "Nome do workspace")
+        ("workspace" = String, Path, description = "Workspace name")
     ),
     responses(
-        (status = 200, body = WorkspaceOutput, description = "Workspace atualizado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = WorkspaceOutput, description = "Workspace updated"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn put_workspace(
@@ -116,7 +120,9 @@ pub(crate) async fn put_workspace(
         .update_workspace(&workspace, name, payload.description.as_deref())
         .await
     {
-        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace_to_output(workspace))).into_response(),
+        Ok(Some(workspace)) => {
+            (StatusCode::OK, Json(workspace_to_output(workspace))).into_response()
+        }
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Workspace not found"),
         Err(message) if message == "Workspace already exists" => {
             json_error(StatusCode::CONFLICT, &message)
@@ -130,11 +136,11 @@ pub(crate) async fn put_workspace(
     path = "/workspaces/{workspace}",
     request_body = WorkspacePatch,
     params(
-        ("workspace" = String, Path, description = "Nome do workspace")
+        ("workspace" = String, Path, description = "Workspace name")
     ),
     responses(
-        (status = 200, body = WorkspaceOutput, description = "Workspace atualizado"),
-        (status = 404, description = "Nao encontrado")
+        (status = 200, body = WorkspaceOutput, description = "Workspace updated"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn patch_workspace(
@@ -181,7 +187,9 @@ pub(crate) async fn patch_workspace(
         )
         .await
     {
-        Ok(Some(workspace)) => (StatusCode::OK, Json(workspace_to_output(workspace))).into_response(),
+        Ok(Some(workspace)) => {
+            (StatusCode::OK, Json(workspace_to_output(workspace))).into_response()
+        }
         Ok(None) => json_error(StatusCode::NOT_FOUND, "Workspace not found"),
         Err(message) if message == "Workspace already exists" => {
             json_error(StatusCode::CONFLICT, &message)
@@ -194,11 +202,11 @@ pub(crate) async fn patch_workspace(
     delete,
     path = "/workspaces/{workspace}",
     params(
-        ("workspace" = String, Path, description = "Nome do workspace")
+        ("workspace" = String, Path, description = "Workspace name")
     ),
     responses(
-        (status = 204, description = "Removido"),
-        (status = 404, description = "Nao encontrado")
+        (status = 204, description = "Removed"),
+        (status = 404, description = "Not found")
     )
 )]
 pub(crate) async fn delete_workspace(

@@ -1,22 +1,22 @@
 # qrud
 
-Servidor HTTP de mock com semantica CRUD. Os dados sao armazenados em SQLite ou Postgres.
+HTTP mock server with CRUD semantics. Data is stored in SQLite or Postgres.
 
-## Como rodar
+## Running
 
-SQLite em memoria (padrao):
+SQLite in memory (default):
 
 ```bash
 cargo run -- --port 3000 --sqlite
 ```
 
-SQLite em memoria com workspace default automatico:
+SQLite in memory with automatic default workspace:
 
 ```bash
 cargo run -- --port 3000 --sqlite --use-default
 ```
 
-SQLite em arquivo:
+SQLite in a file:
 
 ```bash
 cargo run -- --port 3000 --sqlite ./qrud.db
@@ -28,7 +28,7 @@ Postgres:
 cargo run -- --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
 ```
 
-CORS configurado pela CLI:
+CORS configured through CLI:
 
 ```bash
 cargo run -- --port 3000 --cors \
@@ -38,13 +38,13 @@ cargo run -- --port 3000 --cors \
   --cors-credentials true
 ```
 
-Liberar todos os CORS:
+Allow all CORS:
 
 ```bash
 cargo run -- --port 3000 --cors-allow
 ```
 
-OpenTelemetry (desativado por padrao):
+OpenTelemetry (disabled by default):
 
 ```bash
 cargo run -- --port 3000 --otel \
@@ -57,11 +57,11 @@ cargo run -- --port 3000 --otel \
   --otel-sampler-arg 0.25
 ```
 
-## Imagem Docker (artifact)
+## Docker Image (Artifact)
 
-O `Dockerfile.artifact` espera um binario precompilado em `artifacts/<arch>/<app_name>` e usa `APP_NAME` tambem em runtime.
+`Dockerfile.artifact` expects a prebuilt binary at `artifacts/<arch>/<app_name>` and also uses `APP_NAME` at runtime.
 
-Exemplo para `amd64`:
+Example for `amd64`:
 
 ```bash
 mkdir -p artifacts/amd64
@@ -73,32 +73,32 @@ docker build -f Dockerfile.artifact \
 docker run --rm -p 3000:3000 qrud:artifact
 ```
 
-## Configuração via variáveis de ambiente
+## Environment Variables
 
-Todas as flags da CLI podem ser configuradas via variáveis de ambiente com o prefixo `QRUD_*`. A CLI tem prioridade sobre as variáveis de ambiente.
+Every CLI flag can also be configured through `QRUD_*` environment variables. CLI flags take precedence over environment variables.
 
-- `QRUD_HOST` — Host para bind (default: `0.0.0.0`)
-- `QRUD_PORT` — Porta HTTP (default: `3000`)
-- `QRUD_SQLITE` — Caminho para arquivo SQLite (ou `:memory:`)
-- `QRUD_POSTGRES` — URL de conexão PostgreSQL
-- `QRUD_USE_DEFAULT` — Usa workspace default automático (`true` ou `false`)
-- `QRUD_SCHEMA` — Fonte do contrato OpenAPI (`arquivo`, `URL`, JSON/YAML inline ou Base64)
-- `QRUD_CORS` — Habilita CORS (`true` ou `false`)
-- `QRUD_CORS_ALLOW` — Libera CORS total (origins, methods, headers com `*`)
-- `QRUD_CORS_ORIGINS` — Lista de origins separados por vírgula (ou `*`)
-- `QRUD_CORS_METHODS` — Lista de métodos separados por vírgula (ou `*`)
-- `QRUD_CORS_HEADERS` — Lista de headers separados por vírgula (ou `*`)
-- `QRUD_CORS_CREDENTIALS` — Habilita `Access-Control-Allow-Credentials` (`true` ou `false`)
-- `QRUD_OTEL` — Habilita OpenTelemetry (`true` ou `false`)
-- `QRUD_OTEL_ENDPOINT` — Endpoint OTLP (ex.: `http://localhost:4317` ou `http://localhost:4318/v1/traces`)
-- `QRUD_OTEL_PROTOCOL` — `grpc` ou `http`
-- `QRUD_OTEL_SERVICE_NAME` — Nome do servico reportado no OTEL
-- `QRUD_OTEL_SERVICE_VERSION` — Versao do servico reportada no OTEL
-- `QRUD_OTEL_TRACER_NAME` — Nome do tracer
-- `QRUD_OTEL_SAMPLER` — `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio`
-- `QRUD_OTEL_SAMPLER_ARG` — argumento numerico do sampler (0.0 a 1.0 para ratio)
+- `QRUD_HOST` - Bind host (default: `0.0.0.0`)
+- `QRUD_PORT` - HTTP port (default: `3000`)
+- `QRUD_SQLITE` - SQLite file path (or `:memory:`)
+- `QRUD_POSTGRES` - PostgreSQL connection URL
+- `QRUD_USE_DEFAULT` - Enable automatic default workspace (`true` or `false`)
+- `QRUD_SCHEMA` - OpenAPI contract source (`file`, `URL`, inline JSON/YAML, or Base64)
+- `QRUD_CORS` - Enable CORS (`true` or `false`)
+- `QRUD_CORS_ALLOW` - Allow all CORS values (origins, methods, and headers become `*`)
+- `QRUD_CORS_ORIGINS` - Comma-separated list of origins (or `*`)
+- `QRUD_CORS_METHODS` - Comma-separated list of methods (or `*`)
+- `QRUD_CORS_HEADERS` - Comma-separated list of headers (or `*`)
+- `QRUD_CORS_CREDENTIALS` - Enable `Access-Control-Allow-Credentials` (`true` or `false`)
+- `QRUD_OTEL` - Enable OpenTelemetry (`true` or `false`)
+- `QRUD_OTEL_ENDPOINT` - OTLP endpoint (for example `http://localhost:4317` or `http://localhost:4318/v1/traces`)
+- `QRUD_OTEL_PROTOCOL` - `grpc` or `http`
+- `QRUD_OTEL_SERVICE_NAME` - Service name reported to OTEL
+- `QRUD_OTEL_SERVICE_VERSION` - Service version reported to OTEL
+- `QRUD_OTEL_TRACER_NAME` - Tracer name
+- `QRUD_OTEL_SAMPLER` - `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio`
+- `QRUD_OTEL_SAMPLER_ARG` - Numeric sampler argument (`0.0` to `1.0` for ratio-based samplers)
 
-Exemplo:
+Example:
 
 ```bash
 export QRUD_HOST=127.0.0.1
@@ -112,14 +112,14 @@ export QRUD_OTEL_ENDPOINT=http://localhost:4317
 cargo run
 ```
 
-Mix de CLI e env (CLI sobrescreve env):
+Mixing CLI and env values (CLI wins):
 
 ```bash
 export QRUD_PORT=5000
-cargo run -- --port 3000  # usa 3000
+cargo run -- --port 3000  # uses 3000
 ```
 
-### Mapa CLI para env
+### CLI to Env Mapping
 
 - `--host` <-> `QRUD_HOST`
 - `--port` <-> `QRUD_PORT`
@@ -148,93 +148,92 @@ cargo run -- --port 3000  # usa 3000
 curl http://localhost:3000/openapi.json
 ```
 
-Carregar ou remover um contrato em runtime:
+Load or remove a contract at runtime:
 
 ```bash
 curl -X PUT http://localhost:3000/openapi/contract \
   -H 'Content-Type: application/json' \
-  --data-binary @schema.json
+  -d '{"openapi":"3.0.3","info":{"title":"demo","version":"1.0.0"},"paths":{}}'
 
 curl -X DELETE http://localhost:3000/openapi/contract
 ```
 
-## Documentacao detalhada
+## Detailed Documentation
 
-### Conceitos
+### Concepts
 
-Workspace e o namespace (multi-tenant) do dado. O nome deve ser `dash-case` e unico. Se o banco estiver vazio, o workspace `default` e criado automaticamente. Com `--use-default`, o header `x-workspace-id` passa a ser opcional.
+A workspace is the data namespace (multi-tenant boundary). Its name must be unique and use `dash-case`. If the database is empty, the `default` workspace is created automatically. With `--use-default`, the `x-workspace-id` header becomes optional.
 
-Documento e qualquer JSON armazenado sob uma chave de path (`pk`). O `pk` pode ter mais de um segmento, por exemplo `/users` ou `/orders/2024`.
+A document is any JSON value stored under a path key (`pk`). The `pk` may contain multiple segments, for example `/users` or `/orders/2024`.
 
-### Endpoints principais
+### Main Endpoints
 
-- `GET /health` retorna `200` com "OK".
-- `GET /info` retorna informacoes do banco conectado.
-- `GET /openapi.json` retorna a especificacao OpenAPI gerada.
+- `GET /health` returns `200` with `OK`.
+- `GET /info` returns information about the connected database.
+- `GET /openapi.json` returns the current OpenAPI specification.
 
 ### Workspaces
 
-- `POST /workspaces` cria workspace. Nome deve ser `dash-case`.
-- `GET /workspaces` lista workspaces ativos.
-- `GET /workspaces/{workspace}` busca workspace.
-- `PUT /workspaces/{workspace}` atualiza nome e descricao.
-- `PATCH /workspaces/{workspace}` atualiza parcialmente nome ou descricao.
-- `DELETE /workspaces/{workspace}` faz soft delete e retorna `204` se existir.
+- `POST /workspaces` creates a workspace. The name must be `dash-case`.
+- `GET /workspaces` lists active workspaces.
+- `GET /workspaces/{workspace}` fetches a workspace.
+- `PUT /workspaces/{workspace}` updates the name and description.
+- `PATCH /workspaces/{workspace}` partially updates the name or description.
+- `DELETE /workspaces/{workspace}` performs a soft delete and returns `204` when the workspace exists.
 
-### Documentos
+### Documents
 
-As rotas aceitam dois formatos:
+Routes support two formats:
 
-- Via header: `/{*pk}` com `x-workspace-id: <workspace_name>`.
-- Via path: `/workspaces/{workspace}/{*pk}`.
+- Header-based: `/{*pk}` with `x-workspace-id: <workspace_name>`.
+- Path-based: `/workspaces/{workspace}/{*pk}`.
 
-Regras principais:
+Core rules:
 
-- `POST` cria e ignora `id` no payload. Se o path terminar com UUID, retorna erro.
-- `PUT` faz upsert: cria se nao existir e atualiza se existir. Se o path terminar com UUID, usa como id.
-- `PATCH` faz merge superficial apenas no nivel raiz. Exige JSON object e ignora `id`.
-- `DELETE` retorna `204` se existir e `404` caso contrario.
+- `POST` creates a document and ignores `id` in the payload. If the path ends with a UUID, the request fails.
+- `PUT` performs an upsert: it creates when missing and updates when present. If the path ends with a UUID, that UUID is used as the document id.
+- `PATCH` performs a shallow merge at the root level only. It requires a JSON object and ignores `id`.
+- `DELETE` returns `204` when the document exists and `404` otherwise.
 
-O `pk` nao pode ser reservado para `health`, `heath`, `info`, `workspaces`, `documents`.
+`pk` cannot use reserved values such as `health`, `heath`, `info`, `workspaces`, or `documents`.
 
-### Listagem, busca e ordenacao
+### Listing, Search, and Sorting
 
-`GET` em colecao (quando o path nao termina com UUID) suporta:
+Collection `GET` requests (when the path does not end with a UUID) support:
 
-- `term`: busca case-insensitive nos campos `name`, `title`, `label`, `reference`, `category`, `description`.
-- `limit` e `offset`: paginacao.
-- `order`: `asc` ou `desc` (padrao `desc`).
-- `by`: `created_at` ou `updated_at` (padrao `created_at`).
+- `term`: case-insensitive search across `name`, `title`, `label`, `reference`, `category`, and `description`.
+- `limit` and `offset`: pagination.
+- `order`: `asc` or `desc` (default `desc`).
+- `by`: `created_at` or `updated_at` (default `created_at`).
 
-Resposta inclui: `items`, `total`, `limit`, `offset`, `order`, `by`.
+Responses include `items`, `total`, `limit`, `offset`, `order`, and `by`.
 
-### Formato de saida
+### Output Format
 
-Todo documento retornado inclui:
+Every returned document includes:
 
-- `$id`, `$createdAt`, `$updatedAt`.
-- `$deletedAt` quando existe.
-- Se o payload armazenado nao for objeto, o valor volta em `value`.
+- `$id`, `$createdAt`, and `$updatedAt`.
+- `$deletedAt` when present.
+- `value` when the stored payload is not an object.
 
-### Contrato OpenAPI (opcional)
+### OpenAPI Contract (Optional)
 
-Ao iniciar com `--schema <fonte>` ou `QRUD_SCHEMA=<fonte>`, o servidor valida:
+When the server starts with `--schema <source>` or `QRUD_SCHEMA=<source>`, it validates:
 
-- Rotas: se a rota nao existir no contrato, retorna `404`.
-- Payload: se o payload nao bater no schema, retorna `400`.
+- Routes: if the route does not exist in the contract, it returns `404`.
+- Payloads: if the payload does not match the schema, it returns `400`.
 
-Tambem e possivel carregar ou substituir o contrato em runtime com `PUT /openapi/contract`
-enviando o JSON da especificacao no body. `DELETE /openapi/contract` remove o contrato atual.
+You can also load or replace the active contract at runtime with `PUT /openapi/contract` by sending the OpenAPI JSON document in the request body. `DELETE /openapi/contract` removes the current contract.
 
-Somente referencias locais (`#/`) sao suportadas no contrato.
+Only local references (`#/`) are supported inside the contract.
 
 ### Logs
 
-Com `RUST_LOG=debug`, o servidor registra request e response (headers e body) no log.
+With `RUST_LOG=debug`, the server logs requests and responses, including headers and body.
 
-## Casos de uso
+## Use Cases
 
-1. Mock rapido para frontend sem backend real
+1. Quick frontend mock without a real backend
 
 ```bash
 curl -X POST http://localhost:3000/users \
@@ -246,7 +245,7 @@ curl "http://localhost:3000/users?limit=10&offset=0" \
   -H 'x-workspace-id: default'
 ```
 
-2. Multi-tenant com workspace no path
+2. Multi-tenant usage with workspace in the path
 
 ```bash
 curl -X POST http://localhost:3000/workspaces/acme-inc \
@@ -258,14 +257,14 @@ curl -X POST http://localhost:3000/workspaces/acme-inc/orders \
   -d '{"total": 120.5, "status":"paid"}'
 ```
 
-3. Busca e ordenacao em colecoes
+3. Search and ordering in collections
 
 ```bash
 curl "http://localhost:3000/products?term=shoe&order=asc&by=updated_at&limit=5&offset=0" \
   -H 'x-workspace-id: default'
 ```
 
-4. Upsert com id no path
+4. Upsert with an id in the path
 
 ```bash
 curl -X PUT http://localhost:3000/users/7b3a4b2f-5a7e-4a3f-9f4e-8e6a2b0f8e11 \
@@ -274,28 +273,28 @@ curl -X PUT http://localhost:3000/users/7b3a4b2f-5a7e-4a3f-9f4e-8e6a2b0f8e11 \
   -d '{"name":"Bea"}'
 ```
 
-5. Validacao por contrato OpenAPI
+5. Validation through an OpenAPI contract
 
 ```bash
-# arquivo local
-cargo run -- --port 3000 --sqlite --schema ./schema.json
+# local file
+cargo run -- --port 3000 --sqlite --schema ./example.yaml
 
-# URL remota
+# remote URL
 cargo run -- --port 3000 --sqlite --schema https://example.com/openapi.json
 
-# JSON inline
+# inline JSON
 cargo run -- --port 3000 --sqlite --schema '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}'
 
-# Base64 (conteudo JSON/YAML codificado)
+# Base64 (encoded JSON or YAML content)
 SCHEMA_B64=$(printf '%s' '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}' | base64)
 cargo run -- --port 3000 --sqlite --schema "$SCHEMA_B64"
 ```
 
-## Rotas
+## Routes
 
 ### Workspaces
 
-O nome do workspace deve ser `dash-case` e unico. Na primeira inicializacao, o workspace `default` e criado automaticamente.
+Workspace names must be unique and use `dash-case`. On first startup, the `default` workspace is created automatically.
 
 ```bash
 curl -X POST http://localhost:3000/workspaces \
@@ -327,7 +326,7 @@ curl -X PATCH http://localhost:3000/workspaces/<workspace_name> \
 curl -X DELETE http://localhost:3000/workspaces/<workspace_name>
 ```
 
-### Documents via header
+### Documents via Header
 
 ```bash
 curl -X POST http://localhost:3000/users \
@@ -360,12 +359,12 @@ curl -X DELETE http://localhost:3000/users \
   -H 'x-workspace-id: <workspace_name>'
 ```
 
-### Documents via workspace no path
+### Documents via Workspace Path
 
 ```bash
 curl -X POST http://localhost:3000/workspaces/<workspace_name>/posts \
   -H 'Content-Type: application/json' \
-  -d '{"title":"Oi"}'
+  -d '{"title":"Hello"}'
 ```
 
 ```bash
@@ -375,7 +374,7 @@ curl http://localhost:3000/workspaces/<workspace_name>/posts
 ```bash
 curl -X PUT http://localhost:3000/workspaces/<workspace_name>/posts \
   -H 'Content-Type: application/json' \
-  -d '{"title":"Novo"}'
+  -d '{"title":"New"}'
 ```
 
 ```bash

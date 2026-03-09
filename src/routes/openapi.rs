@@ -13,8 +13,8 @@ use crate::services::{ApiContract, AppState};
     path = "/openapi/contract",
     request_body = AnyJson,
     responses(
-        (status = 204, description = "Contrato OpenAPI carregado"),
-        (status = 400, description = "Contrato OpenAPI invalido")
+        (status = 204, description = "OpenAPI contract loaded"),
+        (status = 400, description = "Invalid OpenAPI contract")
     )
 )]
 pub(crate) async fn put_contract(
@@ -34,7 +34,7 @@ pub(crate) async fn put_contract(
     delete,
     path = "/openapi/contract",
     responses(
-        (status = 204, description = "Contrato OpenAPI removido")
+        (status = 204, description = "OpenAPI contract removed")
     )
 )]
 pub(crate) async fn delete_contract(Extension(state): Extension<AppState>) -> Response {
