@@ -3,7 +3,7 @@ name = "qrud"
 version = "0.1.0"
 edition = "2024"
 description = "Server for CRUD operations"
-authors = ["Philippe Assis <philippe.assis@weops.ai>"]
+authors = ["Philippe Assis <codephilippe@gmail.com>"]
 license = "Apache-2.0"
 
 [dependencies]
