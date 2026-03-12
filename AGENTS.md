@@ -1,32 +1,32 @@
 # AGENTS.md
 
-Diretrizes de desenvolvimento do projeto `qrud`.
+Development guidelines for the `qrud` project.
 
 **Workflow**
-1. Mantenha mudancas pequenas e focadas por tarefa.
-2. Sempre execute `cargo test` ao finalizar uma tarefa.
-3. Se `cargo test` retornar com sucesso, faca commit e push do projeto.
-4. Se nao rodar testes, explique o motivo no resumo da entrega.
+1. Keep changes small and focused per task.
+2. Always run `cargo test` when finishing a task.
+3. If `cargo test` succeeds, commit and push the project.
+4. If you do not run tests, explain why in the delivery summary.
 
-**Arquitetura**
-- `src/main.rs` apenas CLI e bootstrap do servidor.
-- `src/routes/` para handlers e parsing de request.
-- `src/services/` para acesso ao SQLite e logica de persistencia.
-- `src/models.rs` para modelos de entrada e constantes.
+**Architecture**
+- `src/main.rs` should contain only CLI code and server bootstrap.
+- `src/routes/` is for handlers and request parsing.
+- `src/services/` is for SQLite access and persistence logic.
+- `src/models.rs` is for input models and constants.
 
-**Regras de API**
-- `POST /{colecao}` sempre ignora `id` do payload e auto-incrementa.
-- `PUT /{colecao}/{id}` cria se nao existir e atualiza o contador.
-- `PATCH /{colecao}/{id}` faz merge superficial e ignora `id` do payload.
-- `DELETE /{colecao}/{id}` retorna `204` se existir, `404` caso contrario.
-- `GET /{colecao}` suporta filtros e paginacao.
+**API Rules**
+- `POST /{collection}` always ignores `id` from the payload and auto-increments.
+- `PUT /{collection}/{id}` creates the record if it does not exist and updates the counter.
+- `PATCH /{collection}/{id}` performs a shallow merge and ignores `id` from the payload.
+- `DELETE /{collection}/{id}` returns `204` if it exists, `404` otherwise.
+- `GET /{collection}` supports filtering and pagination.
 
-**Filtros e paginacao**
-- `term` e case-insensitive.
-- `filter` pode repetir para indicar campos consultados.
-- Sem `filter`, usa `name`, `title`, `label`, `description`, `category`.
-- `limit` e `offset` paginam o resultado.
+**Filtering and Pagination**
+- `term` is case-insensitive.
+- `filter` can be repeated to indicate which fields are queried.
+- Without `filter`, use `name`, `title`, `label`, `description`, `category`.
+- `limit` and `offset` paginate the result.
 
-**Persistencia**
-- SQLite `v0.37.0` e storage em `:memory:` por padrao.
-**Fim**
+**Persistence**
+- SQLite `v0.37.0` and `:memory:` storage by default.
+**End**
