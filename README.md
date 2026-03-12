@@ -1,16 +1,134 @@
 # qrud
 
-HTTP mock server with CRUD semantics. Data is stored in SQLite or Postgres.
+`qrud` exists to solve a very practical problem: getting an HTTP API online in minutes, with real CRUD semantics, persistent storage, and enough flexibility to evolve without the weight of a full backend on day one.
 
-## Running
+That is what makes `qrud` so strong. It is not just a mock server. It gives product teams, frontend teams, and integration flows an incredibly efficient starting point: it boots fast, stores real JSON data, isolates data by workspace, accepts an OpenAPI contract, exposes observability, and runs on either SQLite or Postgres. It is the kind of tool that removes friction and gives development speed back to the team.
 
-SQLite in memory (default):
+## Features
+
+- Ready-to-use HTTP API with CRUD semantics.
+- Persistence with SQLite or Postgres.
+- Multi-tenant model through `workspace`, with support for `x-workspace-id`.
+- Automatic creation of the `default` workspace.
+- `--use-default` to simplify local environments and demos.
+- Support for any JSON payload.
+- Collection listing with `term`, `limit`, `offset`, `order`, and `by`.
+- Optional OpenAPI contract validation for routes and payloads.
+- `GET /openapi.json` to inspect the active contract.
+- CORS configurable through CLI flags or environment variables.
+- Optional OpenTelemetry tracing.
+- Configuration through flags or `QRUD_*` environment variables.
+
+## Install with Docker
+
+The current `Dockerfile` packages a prebuilt binary. That means the correct flow is:
+
+1. build the `release` binary;
+2. build the image;
+3. run the container and configure `qrud` through environment variables.
+
+Build the binary:
+
+```bash
+cargo build --release
+```
+
+Build the image:
+
+```bash
+docker build -t qrud .
+```
+
+Run with in-memory SQLite:
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e QRUD_SQLITE=:memory: \
+  -e QRUD_USE_DEFAULT=true \
+  qrud
+```
+
+If you want file persistence:
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e QRUD_SQLITE=/data/qrud.db \
+  -e QRUD_USE_DEFAULT=true \
+  -v "$(pwd)/data:/data" \
+  qrud
+```
+
+If you want Postgres:
+
+```bash
+docker run --rm -p 3000:3000 \
+  -e QRUD_POSTGRES='postgres://user:pass@host.docker.internal:5432/qrud' \
+  qrud
+```
+
+There is also `Dockerfile.artifact`, designed for setups where the binary is already separated into `artifacts/<arch>/<app_name>`:
+
+```bash
+mkdir -p artifacts/amd64
+cp target/release/qrud artifacts/amd64/qrud
+
+docker build -f Dockerfile.artifact \
+  --build-arg TARGETARCH=amd64 \
+  --build-arg APP_NAME=qrud \
+  -t qrud:artifact .
+
+docker run --rm -p 3000:3000 \
+  -e QRUD_SQLITE=:memory: \
+  qrud:artifact
+```
+
+## Install with Binaries
+
+If you prefer to run it without `cargo run`, build the binary and place it on your `PATH`.
+
+Build the executable:
+
+```bash
+cargo build --release
+```
+
+Install it for the current user:
+
+```bash
+mkdir -p ~/.local/bin
+cp target/release/qrud ~/.local/bin/qrud
+chmod +x ~/.local/bin/qrud
+```
+
+Run the binary:
+
+```bash
+qrud --port 3000 --sqlite
+```
+
+Or with a file-based database:
+
+```bash
+qrud --port 3000 --sqlite ./qrud.db --use-default
+```
+
+Or with Postgres:
+
+```bash
+qrud --port 3000 --postgres "postgres://user:pass@localhost:5432/qrud"
+```
+
+## Run with Cargo
+
+For local development, this is the most direct path.
+
+In-memory SQLite:
 
 ```bash
 cargo run -- --port 3000 --sqlite
 ```
 
-SQLite in memory with automatic default workspace:
+In-memory SQLite with automatic default workspace:
 
 ```bash
 cargo run -- --port 3000 --sqlite --use-default
@@ -44,7 +162,7 @@ Allow all CORS:
 cargo run -- --port 3000 --cors-allow
 ```
 
-OpenTelemetry (disabled by default):
+OpenTelemetry:
 
 ```bash
 cargo run -- --port 3000 --otel \
@@ -57,46 +175,63 @@ cargo run -- --port 3000 --otel \
   --otel-sampler-arg 0.25
 ```
 
-## Docker Image (Artifact)
+## First Requests
 
-`Dockerfile.artifact` expects a prebuilt binary at `artifacts/<arch>/<app_name>` and also uses `APP_NAME` at runtime.
-
-Example for `amd64`:
+Health check:
 
 ```bash
-mkdir -p artifacts/amd64
-cp target/debug/qrud artifacts/amd64/qrud
-docker build -f Dockerfile.artifact \
-  --build-arg TARGETARCH=amd64 \
-  --build-arg APP_NAME=qrud \
-  -t qrud:artifact .
-docker run --rm -p 3000:3000 qrud:artifact
+curl http://localhost:3000/health
 ```
 
-## Environment Variables
+Create a document:
 
-Every CLI flag can also be configured through `QRUD_*` environment variables. CLI flags take precedence over environment variables.
+```bash
+curl -X POST http://localhost:3000/users \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: default' \
+  -d '{"name":"Ana","role":"admin"}'
+```
 
-- `QRUD_HOST` - Bind host (default: `0.0.0.0`)
-- `QRUD_PORT` - HTTP port (default: `3000`)
-- `QRUD_SQLITE` - SQLite file path (or `:memory:`)
-- `QRUD_POSTGRES` - PostgreSQL connection URL
-- `QRUD_USE_DEFAULT` - Enable automatic default workspace (`true` or `false`)
-- `QRUD_SCHEMA` - OpenAPI contract source (`file`, `URL`, inline JSON/YAML, or Base64)
-- `QRUD_CORS` - Enable CORS (`true` or `false`)
-- `QRUD_CORS_ALLOW` - Allow all CORS values (origins, methods, and headers become `*`)
-- `QRUD_CORS_ORIGINS` - Comma-separated list of origins (or `*`)
-- `QRUD_CORS_METHODS` - Comma-separated list of methods (or `*`)
-- `QRUD_CORS_HEADERS` - Comma-separated list of headers (or `*`)
-- `QRUD_CORS_CREDENTIALS` - Enable `Access-Control-Allow-Credentials` (`true` or `false`)
-- `QRUD_OTEL` - Enable OpenTelemetry (`true` or `false`)
-- `QRUD_OTEL_ENDPOINT` - OTLP endpoint (for example `http://localhost:4317` or `http://localhost:4318/v1/traces`)
-- `QRUD_OTEL_PROTOCOL` - `grpc` or `http`
-- `QRUD_OTEL_SERVICE_NAME` - Service name reported to OTEL
-- `QRUD_OTEL_SERVICE_VERSION` - Service version reported to OTEL
-- `QRUD_OTEL_TRACER_NAME` - Tracer name
-- `QRUD_OTEL_SAMPLER` - `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio`
-- `QRUD_OTEL_SAMPLER_ARG` - Numeric sampler argument (`0.0` to `1.0` for ratio-based samplers)
+List documents:
+
+```bash
+curl "http://localhost:3000/users?limit=10&offset=0" \
+  -H 'x-workspace-id: default'
+```
+
+Upsert with `PUT` and an id in the path:
+
+```bash
+curl -X PUT http://localhost:3000/users/7b3a4b2f-5a7e-4a3f-9f4e-8e6a2b0f8e11 \
+  -H 'Content-Type: application/json' \
+  -H 'x-workspace-id: default' \
+  -d '{"name":"Bea"}'
+```
+
+## Environment Configuration
+
+Every CLI flag can also be configured through a `QRUD_*` environment variable. When both are present, CLI wins.
+
+- `QRUD_HOST`: bind host. Default is `0.0.0.0`.
+- `QRUD_PORT`: HTTP port. Default is `3000`.
+- `QRUD_SQLITE`: SQLite path or `:memory:`.
+- `QRUD_POSTGRES`: Postgres connection URL.
+- `QRUD_USE_DEFAULT`: enables the `default` workspace automatically.
+- `QRUD_SCHEMA`: OpenAPI contract from file, URL, inline JSON/YAML, or Base64.
+- `QRUD_CORS`: enables CORS.
+- `QRUD_CORS_ALLOW`: allows origins, methods, and headers with `*`.
+- `QRUD_CORS_ORIGINS`: comma-separated list.
+- `QRUD_CORS_METHODS`: comma-separated list.
+- `QRUD_CORS_HEADERS`: comma-separated list.
+- `QRUD_CORS_CREDENTIALS`: enables `Access-Control-Allow-Credentials`.
+- `QRUD_OTEL`: enables OpenTelemetry.
+- `QRUD_OTEL_ENDPOINT`: OTLP endpoint.
+- `QRUD_OTEL_PROTOCOL`: `grpc` or `http`.
+- `QRUD_OTEL_SERVICE_NAME`: service name.
+- `QRUD_OTEL_SERVICE_VERSION`: reported version.
+- `QRUD_OTEL_TRACER_NAME`: tracer name.
+- `QRUD_OTEL_SAMPLER`: sampling strategy.
+- `QRUD_OTEL_SAMPLER_ARG`: numeric sampler argument.
 
 Example:
 
@@ -109,280 +244,110 @@ export QRUD_CORS_ALLOW=true
 export QRUD_OTEL=true
 export QRUD_OTEL_PROTOCOL=grpc
 export QRUD_OTEL_ENDPOINT=http://localhost:4317
+
 cargo run
 ```
 
-Mixing CLI and env values (CLI wins):
+## OpenAPI and Contracts
 
-```bash
-export QRUD_PORT=5000
-cargo run -- --port 3000  # uses 3000
-```
+`qrud` can start with an OpenAPI contract and use that contract to validate routes and payloads. That is especially useful when the goal is to simulate an API with more discipline without giving up speed.
 
-### CLI to Env Mapping
-
-- `--host` <-> `QRUD_HOST`
-- `--port` <-> `QRUD_PORT`
-- `--sqlite` <-> `QRUD_SQLITE`
-- `--postgres` <-> `QRUD_POSTGRES`
-- `--use-default` <-> `QRUD_USE_DEFAULT`
-- `--schema` <-> `QRUD_SCHEMA`
-- `--cors` <-> `QRUD_CORS`
-- `--cors-allow` <-> `QRUD_CORS_ALLOW`
-- `--cors-origin` <-> `QRUD_CORS_ORIGINS`
-- `--cors-method` <-> `QRUD_CORS_METHODS`
-- `--cors-header` <-> `QRUD_CORS_HEADERS`
-- `--cors-credentials` <-> `QRUD_CORS_CREDENTIALS`
-- `--otel` <-> `QRUD_OTEL`
-- `--otel-endpoint` <-> `QRUD_OTEL_ENDPOINT`
-- `--otel-protocol` <-> `QRUD_OTEL_PROTOCOL`
-- `--otel-service-name` <-> `QRUD_OTEL_SERVICE_NAME`
-- `--otel-service-version` <-> `QRUD_OTEL_SERVICE_VERSION`
-- `--otel-tracer-name` <-> `QRUD_OTEL_TRACER_NAME`
-- `--otel-sampler` <-> `QRUD_OTEL_SAMPLER`
-- `--otel-sampler-arg` <-> `QRUD_OTEL_SAMPLER_ARG`
-
-## OpenAPI
+Inspect the active contract:
 
 ```bash
 curl http://localhost:3000/openapi.json
 ```
 
-Load or remove a contract at runtime:
+Load a contract at runtime:
 
 ```bash
 curl -X PUT http://localhost:3000/openapi/contract \
   -H 'Content-Type: application/json' \
   -d '{"openapi":"3.0.3","info":{"title":"demo","version":"1.0.0"},"paths":{}}'
+```
 
+Remove the active contract:
+
+```bash
 curl -X DELETE http://localhost:3000/openapi/contract
 ```
 
-## Detailed Documentation
-
-### Concepts
-
-A workspace is the data namespace (multi-tenant boundary). Its name must be unique and use `dash-case`. If the database is empty, the `default` workspace is created automatically. With `--use-default`, the `x-workspace-id` header becomes optional.
-
-A document is any JSON value stored under a path key (`pk`). The `pk` may contain multiple segments, for example `/users` or `/orders/2024`.
-
-### Main Endpoints
-
-- `GET /health` returns `200` with `OK`.
-- `GET /info` returns information about the connected database.
-- `GET /openapi.json` returns the current OpenAPI specification.
-
-### Workspaces
-
-- `POST /workspaces` creates a workspace. The name must be `dash-case`.
-- `GET /workspaces` lists active workspaces.
-- `GET /workspaces/{workspace}` fetches a workspace.
-- `PUT /workspaces/{workspace}` updates the name and description.
-- `PATCH /workspaces/{workspace}` partially updates the name or description.
-- `DELETE /workspaces/{workspace}` performs a soft delete and returns `204` when the workspace exists.
-
-### Documents
-
-Routes support two formats:
-
-- Header-based: `/{*pk}` with `x-workspace-id: <workspace_name>`.
-- Path-based: `/workspaces/{workspace}/{*pk}`.
-
-Core rules:
-
-- `POST` creates a document and ignores `id` in the payload. If the path ends with a UUID, the request fails.
-- `PUT` performs an upsert: it creates when missing and updates when present. If the path ends with a UUID, that UUID is used as the document id.
-- `PATCH` performs a shallow merge at the root level only. It requires a JSON object and ignores `id`.
-- `DELETE` returns `204` when the document exists and `404` otherwise.
-
-`pk` cannot use reserved values such as `health`, `heath`, `info`, `workspaces`, or `documents`.
-
-### Listing, Search, and Sorting
-
-Collection `GET` requests (when the path does not end with a UUID) support:
-
-- `term`: case-insensitive search across `name`, `title`, `label`, `reference`, `category`, and `description`.
-- `limit` and `offset`: pagination.
-- `order`: `asc` or `desc` (default `desc`).
-- `by`: `created_at` or `updated_at` (default `created_at`).
-
-Responses include `items`, `total`, `limit`, `offset`, `order`, and `by`.
-
-### Output Format
-
-Every returned document includes:
-
-- `$id`, `$createdAt`, and `$updatedAt`.
-- `$deletedAt` when present.
-- `value` when the stored payload is not an object.
-
-### OpenAPI Contract (Optional)
-
-When the server starts with `--schema <source>` or `QRUD_SCHEMA=<source>`, it validates:
-
-- Routes: if the route does not exist in the contract, it returns `404`.
-- Payloads: if the payload does not match the schema, it returns `400`.
-
-You can also load or replace the active contract at runtime with `PUT /openapi/contract` by sending the OpenAPI JSON document in the request body. `DELETE /openapi/contract` removes the current contract.
-
-Only local references (`#/`) are supported inside the contract.
-
-### Logs
-
-With `RUST_LOG=debug`, the server logs requests and responses, including headers and body.
-
-## Use Cases
-
-1. Quick frontend mock without a real backend
+Start with a local file contract:
 
 ```bash
-curl -X POST http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: default' \
-  -d '{"name":"Ana","role":"admin"}'
-
-curl "http://localhost:3000/users?limit=10&offset=0" \
-  -H 'x-workspace-id: default'
-```
-
-2. Multi-tenant usage with workspace in the path
-
-```bash
-curl -X POST http://localhost:3000/workspaces/acme-inc \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"acme-inc"}'
-
-curl -X POST http://localhost:3000/workspaces/acme-inc/orders \
-  -H 'Content-Type: application/json' \
-  -d '{"total": 120.5, "status":"paid"}'
-```
-
-3. Search and ordering in collections
-
-```bash
-curl "http://localhost:3000/products?term=shoe&order=asc&by=updated_at&limit=5&offset=0" \
-  -H 'x-workspace-id: default'
-```
-
-4. Upsert with an id in the path
-
-```bash
-curl -X PUT http://localhost:3000/users/7b3a4b2f-5a7e-4a3f-9f4e-8e6a2b0f8e11 \
-  -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: default' \
-  -d '{"name":"Bea"}'
-```
-
-5. Validation through an OpenAPI contract
-
-```bash
-# local file
 cargo run -- --port 3000 --sqlite --schema ./example.yaml
+```
 
-# remote URL
+With a remote URL:
+
+```bash
 cargo run -- --port 3000 --sqlite --schema https://example.com/openapi.json
+```
 
-# inline JSON
+With inline JSON:
+
+```bash
 cargo run -- --port 3000 --sqlite --schema '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}'
+```
 
-# Base64 (encoded JSON or YAML content)
+With Base64:
+
+```bash
 SCHEMA_B64=$(printf '%s' '{"openapi":"3.0.3","info":{"title":"x","version":"1"},"paths":{}}' | base64)
 cargo run -- --port 3000 --sqlite --schema "$SCHEMA_B64"
 ```
 
-## Routes
+Only local `#/` references are supported inside the contract.
 
-### Workspaces
+## Concepts and Endpoints
 
-Workspace names must be unique and use `dash-case`. On first startup, the `default` workspace is created automatically.
+A `workspace` is the data namespace. Its name must be unique and use `dash-case`. When the database is empty, `default` is created automatically. With `--use-default`, the `x-workspace-id` header becomes optional.
 
-```bash
-curl -X POST http://localhost:3000/workspaces \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"main","description":"Team workspace"}'
-```
+A `document` is any JSON value stored under a path key (`pk`), such as `/users`, `/orders/2024`, or any other structure that fits your domain.
 
-```bash
-curl http://localhost:3000/workspaces
-```
+Main endpoints:
 
-```bash
-curl http://localhost:3000/workspaces/<workspace_name>
-```
+- `GET /health`: returns `200 OK`.
+- `GET /info`: reports details about the connected database.
+- `GET /openapi.json`: returns the current specification.
+- `POST /workspaces`: creates a workspace.
+- `GET /workspaces`: lists active workspaces.
+- `GET /workspaces/{workspace}`: fetches a workspace.
+- `PUT /workspaces/{workspace}`: updates name and description.
+- `PATCH /workspaces/{workspace}`: partially updates it.
+- `DELETE /workspaces/{workspace}`: performs a soft delete.
 
-```bash
-curl -X PUT http://localhost:3000/workspaces/<workspace_name> \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"main","description":"Updated"}'
-```
+Document routes work in two formats:
 
-```bash
-curl -X PATCH http://localhost:3000/workspaces/<workspace_name> \
-  -H 'Content-Type: application/json' \
-  -d '{"description":"Ops"}'
-```
+- Header-based: `/{*pk}` with `x-workspace-id: <workspace>`.
+- Path-based: `/workspaces/{workspace}/{*pk}`.
 
-```bash
-curl -X DELETE http://localhost:3000/workspaces/<workspace_name>
-```
+Main rules:
 
-### Documents via Header
+- `POST` creates a document and ignores `id` in the payload.
+- `PUT` performs an upsert. If the path ends with a UUID, that UUID becomes the document id.
+- `PATCH` performs a shallow merge at the root level and requires a JSON object.
+- `DELETE` returns `204` when the document exists and `404` when it does not.
 
-```bash
-curl -X POST http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: <workspace_name>' \
-  -d '{"name":"Ana"}'
-```
+Collection listings support:
 
-```bash
-curl http://localhost:3000/users \
-  -H 'x-workspace-id: <workspace_name>'
-```
+- `term`: case-insensitive search.
+- `limit` and `offset`: pagination.
+- `order`: `asc` or `desc`.
+- `by`: `created_at` or `updated_at`.
 
-```bash
-curl -X PUT http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: <workspace_name>' \
-  -d '{"name":"Bea"}'
-```
+Every returned document includes:
+
+- `$id`
+- `$createdAt`
+- `$updatedAt`
+- `$deletedAt`, when present
+- `value`, when the stored payload is not an object
+
+## Logs
+
+To debug requests and responses in more detail:
 
 ```bash
-curl -X PATCH http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -H 'x-workspace-id: <workspace_name>' \
-  -d '{"role":"admin"}'
-```
-
-```bash
-curl -X DELETE http://localhost:3000/users \
-  -H 'x-workspace-id: <workspace_name>'
-```
-
-### Documents via Workspace Path
-
-```bash
-curl -X POST http://localhost:3000/workspaces/<workspace_name>/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Hello"}'
-```
-
-```bash
-curl http://localhost:3000/workspaces/<workspace_name>/posts
-```
-
-```bash
-curl -X PUT http://localhost:3000/workspaces/<workspace_name>/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"New"}'
-```
-
-```bash
-curl -X PATCH http://localhost:3000/workspaces/<workspace_name>/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"status":"ok"}'
-```
-
-```bash
-curl -X DELETE http://localhost:3000/workspaces/<workspace_name>/posts
+RUST_LOG=debug cargo run -- --port 3000 --sqlite
 ```
