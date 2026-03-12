@@ -4,18 +4,28 @@ version = "0.1.0"
 edition = "2024"
 description = "Server for CRUD operations"
 authors = ["Philippe Assis <codephilippe@gmail.com>"]
-license = "Apache-2.0"
+license = "MIT"
 
 [dependencies]
 axum = "0.8.8"
 tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "net"] }
-clap = { version = "4.5.56", features = ["derive"] }
+clap = { version = "4.5.61", features = ["derive"] }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.149"
 serde_yaml = "0.9.34"
-opentelemetry = { version = "0.31.0", default-features = false, features = ["trace"] }
-opentelemetry_sdk = { version = "0.31.0", default-features = false, features = ["trace", "rt-tokio"] }
-opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["trace", "grpc-tonic", "http-proto", "reqwest-rustls"] }
+opentelemetry = { version = "0.31.0", default-features = false, features = [
+    "trace",
+] }
+opentelemetry_sdk = { version = "0.31.0", default-features = false, features = [
+    "trace",
+    "rt-tokio",
+] }
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = [
+    "trace",
+    "grpc-tonic",
+    "http-proto",
+    "reqwest-rustls",
+] }
 sqlx = { version = "0.8.6", default-features = false, features = [
     "runtime-tokio",
     "sqlite",
@@ -26,17 +36,20 @@ sqlx = { version = "0.8.6", default-features = false, features = [
 serde_urlencoded = "0.7.1"
 utoipa = { version = "5.0.0", features = ["macros"] }
 utoipa-axum = "0.2.0"
-uuid = { version = "1.11.0", features = ["v7"] }
+uuid = { version = "1.22.0", features = ["v7"] }
 url = "2.5.4"
-time = { version = "0.3.36", features = ["formatting"] }
-jsonschema = { version = "0.41.0", default-features = false }
+time = { version = "0.3.47", features = ["formatting"] }
+jsonschema = { version = "0.45.0", default-features = false }
 fancy-regex = "0.17"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-opentelemetry = "0.32.1"
 tower-http = { version = "0.6.2", features = ["cors"] }
 axum-tracing-opentelemetry = "0.33.0"
-reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.12.24", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+] }
 base64 = "0.22.1"
 
 [dev-dependencies]

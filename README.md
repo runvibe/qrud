@@ -351,3 +351,7 @@ To debug requests and responses in more detail:
 ```bash
 RUST_LOG=debug cargo run -- --port 3000 --sqlite
 ```
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
