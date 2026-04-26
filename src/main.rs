@@ -11,6 +11,7 @@ use opentelemetry::KeyValue;
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::{Protocol, WithExportConfig};
+use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider, Temporality};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::Resource;
 use opentelemetry_sdk::trace::{Sampler, SdkTracerProvider};
@@ -26,6 +27,7 @@ const DEFAULT_PORT: u16 = 3000;
 const DEFAULT_HOST: &str = "0.0.0.0";
 const DEFAULT_OTEL_PROTOCOL: &str = "grpc";
 const DEFAULT_OTEL_SAMPLER: &str = "parentbased_always_on";
+const DEFAULT_OTEL_METRICS_INTERVAL_SECONDS: u64 = 10;
 
 #[derive(Parser, Debug)]
 #[command(name = "qrud", about = "HTTP mock server with CRUD semantics")]
@@ -100,6 +102,11 @@ struct Options {
     otel_tracer_name: String,
     otel_sampler: String,
     otel_sampler_arg: Option<f64>,
+}
+
+struct OtelProviders {
+    tracer_provider: SdkTracerProvider,
+    meter_provider: SdkMeterProvider,
 }
 
 impl Options {
@@ -349,7 +356,7 @@ fn parse_otel_sampler(name: &str, arg: Option<f64>) -> Result<Sampler, String> {
     }
 }
 
-fn init_tracing(opts: &Options) -> Result<Option<SdkTracerProvider>, String> {
+fn init_tracing(opts: &Options) -> Result<Option<OtelProviders>, String> {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     if !opts.otel_enabled {
@@ -360,7 +367,7 @@ fn init_tracing(opts: &Options) -> Result<Option<SdkTracerProvider>, String> {
     let protocol = normalize_otel_protocol(&opts.otel_protocol)?;
     let sampler = parse_otel_sampler(&opts.otel_sampler, opts.otel_sampler_arg)?;
 
-    let exporter = match protocol {
+    let trace_exporter = match protocol {
         Protocol::Grpc => {
             let mut builder = opentelemetry_otlp::SpanExporter::builder().with_tonic();
             if let Some(endpoint) = opts.otel_endpoint.as_deref() {
@@ -381,8 +388,39 @@ fn init_tracing(opts: &Options) -> Result<Option<SdkTracerProvider>, String> {
             return Err("Unsupported OTEL protocol".to_string());
         }
     };
+    let metric_exporter = match protocol {
+        Protocol::Grpc => {
+            let mut builder = opentelemetry_otlp::MetricExporter::builder()
+                .with_tonic()
+                .with_temporality(Temporality::default());
+            if let Some(endpoint) = opts.otel_endpoint.as_deref() {
+                builder = builder.with_endpoint(endpoint.to_string());
+            }
+            builder.build().map_err(|err| err.to_string())?
+        }
+        Protocol::HttpBinary => {
+            let mut builder = opentelemetry_otlp::MetricExporter::builder()
+                .with_http()
+                .with_protocol(Protocol::HttpBinary)
+                .with_temporality(Temporality::default());
+            if let Some(endpoint) = opts.otel_endpoint.as_deref() {
+                builder = builder.with_endpoint(endpoint.to_string());
+            }
+            builder.build().map_err(|err| err.to_string())?
+        }
+        _ => {
+            return Err("Unsupported OTEL protocol".to_string());
+        }
+    };
 
     let resource = Resource::builder()
+        .with_service_name(opts.otel_service_name.clone())
+        .with_attributes([KeyValue::new(
+            "service.version",
+            opts.otel_service_version.clone(),
+        )])
+        .build();
+    let metrics_resource = Resource::builder()
         .with_service_name(opts.otel_service_name.clone())
         .with_attributes([KeyValue::new(
             "service.version",
@@ -392,11 +430,21 @@ fn init_tracing(opts: &Options) -> Result<Option<SdkTracerProvider>, String> {
     let tracer_provider = SdkTracerProvider::builder()
         .with_resource(resource)
         .with_sampler(sampler)
-        .with_batch_exporter(exporter)
+        .with_batch_exporter(trace_exporter)
+        .build();
+    let metric_reader = PeriodicReader::builder(metric_exporter)
+        .with_interval(std::time::Duration::from_secs(
+            DEFAULT_OTEL_METRICS_INTERVAL_SECONDS,
+        ))
+        .build();
+    let meter_provider = SdkMeterProvider::builder()
+        .with_resource(metrics_resource)
+        .with_reader(metric_reader)
         .build();
 
     global::set_text_map_propagator(TraceContextPropagator::new());
     global::set_tracer_provider(tracer_provider.clone());
+    global::set_meter_provider(meter_provider.clone());
 
     let tracer = tracer_provider.tracer(opts.otel_tracer_name.clone());
     tracing_subscriber::registry()
@@ -405,14 +453,17 @@ fn init_tracing(opts: &Options) -> Result<Option<SdkTracerProvider>, String> {
         .with(tracing_opentelemetry::layer().with_tracer(tracer))
         .init();
 
-    Ok(Some(tracer_provider))
+    Ok(Some(OtelProviders {
+        tracer_provider,
+        meter_provider,
+    }))
 }
 
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
     let opts = Options::from_cli_and_env(cli);
-    let tracer_provider = init_tracing(&opts).expect("failed to initialize tracing");
+    let otel_providers = init_tracing(&opts).expect("failed to initialize tracing");
 
     let addr: SocketAddr = format!("{}:{}", opts.host, opts.port)
         .parse()
@@ -460,8 +511,9 @@ async fn main() {
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await;
-    if let Some(provider) = tracer_provider {
-        let _ = provider.shutdown();
+    if let Some(providers) = otel_providers {
+        let _ = providers.tracer_provider.shutdown();
+        let _ = providers.meter_provider.shutdown();
     }
     server_result.expect("server error");
 }
