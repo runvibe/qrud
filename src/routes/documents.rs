@@ -4,7 +4,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value as JsonValue, json};
 
-use crate::models::{AnyJson, DocumentOutput};
+use crate::models::{AnyJson, DEFAULT_DOCUMENT_LIST_LIMIT, DocumentOutput};
 use crate::routes::common::{
     ListParams, document_to_output, ensure_workspace, json_error, parse_document_selector,
     validate_contract_payload, validate_contract_route, workspace_from_header,
@@ -341,7 +341,10 @@ async fn document_get(
     }
 
     let offset = params.offset.unwrap_or(0).max(0);
-    let limit = params.limit.filter(|value| *value > 0);
+    let limit = params
+        .limit
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_DOCUMENT_LIST_LIMIT);
     let term = params
         .term
         .as_ref()
@@ -371,7 +374,7 @@ async fn document_get(
             &workspace_data.id,
             &selector.pk,
             term.as_deref(),
-            limit,
+            Some(limit),
             offset,
             order_desc,
             by_str,
@@ -388,11 +391,10 @@ async fn document_get(
                 Err(message) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &message),
             };
             let items = docs.into_iter().map(document_to_output).collect::<Vec<_>>();
-            let limit_used = limit.unwrap_or(items.len() as i64);
             let payload = json!({
                 "items": items,
                 "total": total,
-                "limit": limit_used,
+                "limit": limit,
                 "offset": offset,
                 "order": order_str,
                 "by": by_str

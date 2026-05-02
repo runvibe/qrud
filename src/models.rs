@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+pub const DEFAULT_DOCUMENT_LIST_LIMIT: i64 = 20;
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WorkspaceInput {
     pub name: String,
@@ -61,7 +63,11 @@ pub struct DocumentOutput {
     pub created_at: i64,
     #[serde(rename = "$updatedAt")]
     pub updated_at: i64,
-    #[serde(rename = "$deletedAt", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "$deletedAt",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub deleted_at: Option<i64>,
     #[serde(flatten)]
     #[schema(value_type = Object)]

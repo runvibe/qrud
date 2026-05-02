@@ -192,7 +192,7 @@ curl -X POST http://localhost:3000/users \
   -d '{"name":"Ana","role":"admin"}'
 ```
 
-List documents:
+List documents. Collection listings return up to 20 items by default; pass `limit` when you need a different page size:
 
 ```bash
 curl "http://localhost:3000/users?limit=10&offset=0" \
@@ -332,7 +332,7 @@ Main rules:
 Collection listings support:
 
 - `term`: case-insensitive search.
-- `limit` and `offset`: pagination.
+- `limit` and `offset`: pagination. `limit` defaults to `20`; pass `?limit=...` for a different page size.
 - `order`: `asc` or `desc`.
 - `by`: `created_at` or `updated_at`.
 

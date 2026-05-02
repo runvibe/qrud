@@ -479,7 +479,7 @@ async fn delete_document_then_get_returns_404() {
     let (status, json) = request_json(&app, get).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(0));
-    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(0));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
@@ -513,7 +513,7 @@ async fn header_workspace_routes_work() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
-    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
@@ -548,7 +548,7 @@ async fn root_document_routes_work() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
-    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
@@ -581,7 +581,7 @@ async fn workspace_document_routes_work() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
-    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
@@ -713,11 +713,79 @@ async fn get_document_success() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(1));
-    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
     assert_eq!(array[0].get("name").and_then(|v| v.as_str()), Some("Ana"));
+}
+
+#[tokio::test]
+async fn list_documents_uses_default_limit_when_query_limit_is_absent() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    for index in 0..25 {
+        let create = Request::builder()
+            .method("POST")
+            .uri("/users".to_string())
+            .header("x-workspace-id", &workspace_name)
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"name":"User {index:02}"}}"#)))
+            .unwrap();
+        let status = request_status(&app, create).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    let items = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(25));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
+    assert_eq!(items.len(), 20);
+}
+
+#[tokio::test]
+async fn list_documents_uses_query_limit_when_present() {
+    let app = build_app().await;
+    let workspace_name = create_workspace(&app).await;
+
+    for index in 0..10 {
+        let create = Request::builder()
+            .method("POST")
+            .uri("/users".to_string())
+            .header("x-workspace-id", &workspace_name)
+            .header("content-type", "application/json")
+            .body(Body::from(format!(r#"{{"name":"User {index:02}"}}"#)))
+            .unwrap();
+        let status = request_status(&app, create).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let get = Request::builder()
+        .method("GET")
+        .uri("/users?limit=7".to_string())
+        .header("x-workspace-id", &workspace_name)
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = request_json(&app, get).await;
+    assert_eq!(status, StatusCode::OK);
+    let items = json
+        .get("items")
+        .and_then(|value| value.as_array())
+        .expect("document items");
+    assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(10));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(7));
+    assert_eq!(items.len(), 7);
 }
 
 #[tokio::test]
@@ -847,7 +915,7 @@ async fn allow_duplicate_pk_returns_latest() {
         .and_then(|value| value.as_array())
         .expect("document items");
     assert_eq!(json.get("total").and_then(|v| v.as_i64()), Some(2));
-    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(2));
+    assert_eq!(json.get("limit").and_then(|v| v.as_i64()), Some(20));
     assert_eq!(json.get("offset").and_then(|v| v.as_i64()), Some(0));
     assert_eq!(json.get("order").and_then(|v| v.as_str()), Some("desc"));
     assert_eq!(json.get("by").and_then(|v| v.as_str()), Some("created_at"));
